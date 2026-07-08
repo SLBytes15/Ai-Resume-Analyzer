@@ -1,0 +1,19 @@
+{
+  "resume_id": "cand_001",
+  "candidate_name": "Alex Rivera",
+  "current_role": "Senior Full Stack Engineer",
+  "experience_level": "Senior",
+  "years_of_experience": "6 years",
+  "education": "Bachelor of Science in Computer Science",
+  "top_skills": [
+    "React",
+    "Node.js",
+    "TypeScript",
+    "Express.js",
+    "PostgreSQL",
+    "Docker",
+    "AWS",
+    "GraphQL"
+  ],
+  "summary": "Product-focused Full Stack Engineer with over six years of experience building scalable web applications. Expert in TypeScript ecosystems across frontend and backend environments."
+}

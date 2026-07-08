@@ -1,0 +1,18 @@
+{
+  "resume_id": "cand_003",
+  "candidate_name": "Taylor Chen",
+  "current_role": "Frontend Developer",
+  "experience_level": "Mid-Level",
+  "years_of_experience": "4 years",
+  "education": "Self-Taught / Bootcamp Graduate",
+  "top_skills": [
+    "React",
+    "Redux",
+    "TypeScript",
+    "JavaScript",
+    "HTML5/CSS3",
+    "Tailwind CSS",
+    "Git"
+  ],
+  "summary": "Passionate frontend specialist transitioning into full-stack architecture. Heavy emphasis on UI/UX components, state management optimization, and robust component lifecycles."
+}

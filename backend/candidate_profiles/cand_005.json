@@ -1,0 +1,18 @@
+{
+  "resume_id": "cand_005",
+  "candidate_name": "Chris Evans",
+  "current_role": "DevOps / Infrastructure Engineer",
+  "experience_level": "Senior",
+  "years_of_experience": "8 years",
+  "education": "Master of Science in Cybersecurity",
+  "top_skills": [
+    "Docker",
+    "Kubernetes",
+    "AWS",
+    "Linux Systems",
+    "Python",
+    "Bash Scripting",
+    "CI/CD Pipelines"
+  ],
+  "summary": "Infrastructure engineer maximizing high availability and automated deployments. Extensive background optimizing clouds and build pipelines, with minor scripting adjustments."
+}

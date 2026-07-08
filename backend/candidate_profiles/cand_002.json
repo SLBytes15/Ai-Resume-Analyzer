@@ -1,0 +1,18 @@
+{
+  "resume_id": "cand_002",
+  "candidate_name": "Jordan Smith",
+  "current_role": "Software Engineer II",
+  "experience_level": "Mid-Level",
+  "years_of_experience": "5",
+  "education": "B.Tech in Information Technology",
+  "top_skills": [
+    "React.js",
+    "Node",
+    "JavaScript",
+    "SQL Server",
+    "Amazon Web Services",
+    "Docker Containers",
+    "RESTful APIs"
+  ],
+  "summary": "Mid-level software developer focusing on modern web stacks. Experienced with containerizing application layers and configuring relational database pipelines."
+}

@@ -1,0 +1,15 @@
+{
+  "jd_id": "jd_999_fullstack",
+  "role": "Full Stack Developer",
+  "skills": [
+    "React",
+    "Node.js",
+    "TypeScript",
+    "Express",
+    "PostgreSQL",
+    "Docker",
+    "AWS",
+    "REST APIs"
+  ],
+  "minimum_years": 4
+}

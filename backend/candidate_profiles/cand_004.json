@@ -1,0 +1,17 @@
+{
+  "resume_id": "cand_004",
+  "candidate_name": "Morgan Bailey",
+  "current_role": "Junior Full Stack Developer",
+  "experience_level": "Junior",
+  "years_of_experience": "2 years",
+  "education": "Associate Degree in Software Engineering",
+  "top_skills": [
+    "React",
+    "Node.js",
+    "Express",
+    "MongoDB",
+    "JavaScript",
+    "PostgreSQL"
+  ],
+  "summary": "Ambitious junior developer with hands-on foundational knowledge across frontend and backend stacks. Eager to join a team focused on complex software engineering fundamentals."
+}
