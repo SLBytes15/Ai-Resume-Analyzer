@@ -1,10 +1,10 @@
 import os
 import shutil
+import chromadb
 from pathlib import Path
 from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex, Settings
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
-import chromadb
 
 def build_clean_index():
     print("--- Starting Clean Indexing Process ---")

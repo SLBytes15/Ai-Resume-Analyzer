@@ -1,3 +1,4 @@
+import os 
 import json
 import re
 from pathlib import Path
@@ -38,6 +39,37 @@ def load_json_file(file_path):
 def _normalize(text: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(text).lower())
 
+def extract_skills_from_raw_jd(raw_text, model_name="nemotron-3-super:cloud"):
+    prompt = f"""
+Analyze this unstructured Job Description text and extract the target parameters.
+Identify the core technical stack requirements and calculate the baseline minimum years of experience requested.
+
+Raw Job Description Text:
+{raw_text}
+
+Return a strict JSON object with exactly these keys:
+{{
+  "role": "Estimated job title or profile classification",
+  "skills": ["List", "of", "exact", "technical", "framework", "keywords"],
+  "minimum_years": 0
+}}
+"""
+    try:
+        response = ollama(
+            model_name=model_name,
+            prompt=prompt,
+            formal='json',
+            options={'temperature': 0.0}
+        )
+        return json.loads(response['response'].strip())
+    except Exception:
+        return {
+            "role": "Software Engineer",
+            "skills": [s.strip() for s in raw_text.split(",") if len(s.strip()) > 0],
+            "minimum_years": 0
+        }
+
+
 
 def _skill_matches(candidate_skills: list[str], required_skills: list[str]) -> tuple[list[str], list[str]]:
     matched: list[str] = []
@@ -71,30 +103,24 @@ def run_explanation_engine(jd_skills, candidate_skills, model_name="nemotron-3-s
         return {"matched": matched, "missing": missing, "reason": reason}
 
     prompt = f"""
-Compare the Required Job Description Skills against the Candidate's Actual Skills.
-Account for acronyms, aliases, and synonymous technologies (e.g., 'SQL' matches 'Structured Query Language', 'Node.js' matches 'Node').
+    Compare the Required Job Description Skills against the Candidate's Actual Skills.
+    Required Skills: {json.dumps(jd_skills)}
+    Candidate Skills: {json.dumps(candidate_skills)}
 
-Required Skills: {json.dumps(jd_skills)}
-Candidate Skills: {json.dumps(candidate_skills)}
-
-Return a strict JSON object with exactly these keys:
-{{
-  "matched": ["List of requirements fulfilled by the candidate, using the original JD naming format"],
-  "missing": ["List of requirements completely unfulfilled or unaccounted for by the candidate"],
-  "reason": "A 1-sentence analytical synthesis explaining how their background fits this specific stack"
-}}
-"""
+    Return a strict JSON object with exactly these keys:
+    {{
+    "matched": ["List of requirements fulfilled by the candidate"],
+    "missing": ["List of requirements unfulfilled"],
+    "reason": "A 1-sentence analytical synthesis"
+    }}
+    """
     try:
-        response = ollama.generate(
-            model=model_name,
-            prompt=prompt,
-            format="json",
-            options={"temperature": 0.0},
-        )
-        return json.loads(response["response"].strip())
+            response = ollama.generate(model=model_name, prompt=prompt, format='json', options={'temperature': 0.0})
+            return json.loads(response['response'].strip())
     except Exception:
-        return {"matched": matched, "missing": missing, "reason": reason}
-
+            matched = [s for s in jd_skills if s.lower() in [cs.lower() for cs in candidate_skills]]
+            missing = [s for s in jd_skills if s not in matched]
+            return {"matched": matched, "missing": missing, "reason": "Fallback engine analysis executed."}
 
 def _heuristic_rank_candidates(jd_data: dict, profiles_dir: str, min_years: int) -> list[dict[str, Any]]:
     required_skills = jd_data.get("skills", [])
@@ -131,8 +157,10 @@ def _heuristic_rank_candidates(jd_data: dict, profiles_dir: str, min_years: int)
     return sorted(ranked_matches, key=lambda item: item["score"], reverse=True)
 
 
-def run_candidate_matcher(jd_data: dict, profiles_dir: str = "../candidate_profiles", chroma_db_path: str = "../chroma_db"):
+def run_candidate_matcher(raw_text: str, profiles_dir: str = "../candidate_profiles", chroma_db_path: str = "../chroma_db"):
     """Return ranked candidates using a local heuristic fallback when vector search dependencies are unavailable."""
+
+    jd_data = extract_skills_from_raw_jd(raw_text)
     target_role = jd_data.get("role", "Unknown Role")
     required_skills = jd_data.get("skills", [])
     min_years = int(jd_data.get("minimum_years", 0))
@@ -153,22 +181,38 @@ def run_candidate_matcher(jd_data: dict, profiles_dir: str = "../candidate_profi
     query_text = f"Specializes in {', '.join(required_skills)}. Targeted operational profile: {target_role}"
     nodes = retriever.retrieve(query_text)
 
+    results = collection.query(
+        query_embeddings = [temporary_query_embedding],
+        n_results = 10,
+        include=["metadatas","distances"]
+    )
+
     if not nodes:
         return _heuristic_rank_candidates(jd_data, profiles_dir, min_years)
 
     ranked_matches = []
     profiles_path = Path(profiles_dir)
 
-    for node_bundle in nodes:
-        node = node_bundle.node
-        score = node_bundle.score
-        semantic_score = int(score * 100) if score else 0
-        real_resume_id = node.metadata.get("resume_id")
+    for idx, cand_id in enumerate(results["ids"][0]):
+        distance = results["distances"][0][idx]
+        metadata = results["metadatas"][0][idx] if results["metadatas"] else {}
+        
+        # Recruiter calibrated bounding scale: Convert distance to intuitive scores
+        # Cosine distance boundaries: 0.40 (perfect) to 1.0 (noise)
+        MIN_BOUND = 0.50
+        MAX_BOUND = 0.85
+        
+        if distance <= MIN_BOUND:
+            semantic_score = 100
+        elif distance >= MAX_BOUND:
+            semantic_score = 0
+        else:
+            normalized = (MAX_BOUND - distance) / (MAX_BOUND - MIN_BOUND)
+            semantic_score = int(normalized * 100)
 
-        if not real_resume_id:
-            continue
-
+        real_resume_id = metadata.get("resume_id", cand_id)
         profile_json_file = profiles_path / f"{real_resume_id}.json"
+        
         if profile_json_file.exists():
             candidate_profile = load_json_file(profile_json_file)
             cand_name = candidate_profile.get("candidate_name", f"Candidate {real_resume_id}")
@@ -183,6 +227,10 @@ def run_candidate_matcher(jd_data: dict, profiles_dir: str = "../candidate_profi
             yoe_check = "Unknown"
 
         analysis_report = run_explanation_engine(required_skills, cand_skills)
+
+        if len(analysis_report.get("matched",[])) == 0:
+            semantic_score = 0
+    
         ranked_matches.append(
             {
                 "id": real_resume_id,
@@ -207,8 +255,23 @@ if __name__ == "__main__":
     TARGET_JD_JSON = "../data/jds/jd.json"
     CANDIDATE_PROFILES_DIR = "../candidate_profiles"
 
-    jd_dictionary = load_json_file(TARGET_JD_JSON)
-    results = run_candidate_matcher(jd_data=jd_dictionary, profiles_dir=CANDIDATE_PROFILES_DIR)
+    # jd_dictionary = load_json_file(TARGET_JD_JSON)
+    jd_dictionary = f"""
+    About the Role:
+We are seeking a high-performing Full Stack Software Engineer to join our core product engineering group. In this role, you will be responsible for building out scalable user interfaces and maintaining cloud-native backend microservices.
+
+Required Technical Skills & Competencies:
+- Front-end architecture built entirely using React and TypeScript.
+- Server-side infrastructure scaling on Node.js utilizing the Express framework.
+- Core relational database data persistence layers structured around PostgreSQL.
+- Solid understanding of modern DevOps workflows, specifically containerization with Docker and deployment pipelines across AWS.
+- Hands-on experience building, securing, and testing resilient REST APIs.
+
+Qualifications:
+- A minimum of 4 Years of professional experience working within a modern product-driven environment.
+- Strong collaborative mindset and experience with agile software development lifecycles.
+"""
+    results = run_candidate_matcher(jd_dictionary, profiles_dir=CANDIDATE_PROFILES_DIR)
 
     print(results)
     

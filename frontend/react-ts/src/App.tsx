@@ -16,37 +16,33 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleMatch = async () => {
-    if (!jdText.trim()) return;
-    setLoading(true);
-    setError('');
-    
-    try {
-      // 1. Basic parsing simulation to match your backend model structure requirements
-      // Realistically you will map a proper textarea input payload to your FastAPI endpoint model schema
-      const mockPayload = {
-        jd_id: "UI_REQUEST_" + Date.now(),
-        role: "Full Stack Developer", // In V2 you can add an explicit Role field
-        skills: jdText.split(',').map(s => s.trim()).filter(Boolean),
-        minimum_years: 4
-      };
+const handleMatch = async () => {
+  if (!jdText.trim()) return;
+  setLoading(true);
+  setError('');
+  
+  try {
+    // Ship the string directly as a single property matching your updated Pydantic object
+    const payload = {
+      raw_text: jdText
+    };
 
-      const response = await fetch('http://127.0.0.1:8000/match', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mockPayload)
-      });
+    const response = await fetch('http://127.0.0.1:8000/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({raw_text: jdText})
+    });
+    console.log("Sending payload to backend:", payload);
 
-      if (!response.ok) throw new Error('API server calculation rejected the mapping schema.');
-      const data = await response.json();
-      setCandidates(data.candidate || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to reach backend engine endpoints.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    if (!response.ok) throw new Error('API server rejected the runtime execution schema.');
+    const data = await response.json();
+    setCandidates(data.candidate || []);
+  } catch (err: any) {
+    setError(err.message || 'Failed to sync with the downstream match pipeline.');
+  } finally {
+    setLoading(false);
+  }
+};
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
       {/* Top Banner Header */}
@@ -141,5 +137,6 @@ export default function App() {
 
       </main>
     </div>
-  );
+  )
+
 }
