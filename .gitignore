@@ -1,1 +1,17 @@
+# Virtual environments
 venv/
+backend/venv/
+.venv/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Environment files
+.env
+.env.local
+
+# OS files
+.DS_Store
