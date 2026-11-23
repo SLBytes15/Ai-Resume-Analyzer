@@ -1,10 +1,13 @@
 from datetime import timedelta
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import create_access_token, verify_password
 from app.models.user import User
+from app.schemas.user import UserCreate
+from app.services.auth_service import create_user
 
 
 @pytest.mark.asyncio
@@ -272,3 +275,138 @@ async def test_users_table_isolation_contract(db_session: AsyncSession):
     assert "password_hash" in column_names
     assert "full_name" in column_names
     assert "is_active" in column_names
+
+
+@pytest.mark.asyncio
+async def test_register_missing_or_whitespace_name(client: AsyncClient):
+    """Test registration fails with 422 if full name is missing or only whitespace."""
+    # 1. Missing name
+    res1 = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "noname@example.com", "password": "SecurePassword123!"},
+    )
+    assert res1.status_code == 422
+
+    # 2. Whitespace-only name
+    res2 = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "spaces@example.com", "password": "SecurePassword123!", "full_name": "   "},
+    )
+    assert res2.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_missing_password(client: AsyncClient):
+    """Test registration fails with 422 if password is missing."""
+    res = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "nopass@example.com", "full_name": "No Pass User"},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_login_empty_credentials(client: AsyncClient):
+    """Test login fails with 422 on empty email or empty password."""
+    # Empty email
+    res1 = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "", "password": "SomePassword123!"},
+    )
+    assert res1.status_code == 422
+
+    # Empty password
+    res2 = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "valid@example.com", "password": ""},
+    )
+    assert res2.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_database_failure(client: AsyncClient):
+    """Test registration returns 503 Service Unavailable on database operational failure."""
+    from unittest.mock import patch
+    from sqlalchemy.exc import OperationalError
+
+    with patch("app.api.v1.auth.get_user_by_email", side_effect=OperationalError("connection failed", {}, Exception())):
+        res = await client.post(
+            "/api/v1/auth/register",
+            json={"email": "dbfail@example.com", "password": "SecurePassword123!", "full_name": "DB Fail User"},
+        )
+        assert res.status_code == 503
+        assert "Database service temporarily unavailable" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_login_database_failure(client: AsyncClient):
+    """Test login returns 503 Service Unavailable on database operational failure."""
+    from unittest.mock import patch
+    from sqlalchemy.exc import OperationalError
+
+    with patch("app.api.v1.auth.authenticate_user", side_effect=OperationalError("connection failed", {}, Exception())):
+        res = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "dbfail@example.com", "password": "SecurePassword123!"},
+        )
+        assert res.status_code == 503
+        assert "Database service temporarily unavailable" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_switch_organization_context(client: AsyncClient):
+    """Test switching active organization context returns updated JWT with active_org_id claim."""
+    # 1. Register recruiter and create organization
+    reg_payload = {
+        "email": "switch.recruiter@example.com",
+        "password": "SecurePassword123!",
+        "full_name": "Switch Recruiter",
+    }
+    reg_res = await client.post("/api/v1/auth/register", json=reg_payload)
+    token = reg_res.json()["access_token"]
+
+    org_res = await client.post(
+        "/api/v1/recruiter/organizations",
+        json={"name": "Switch Org", "slug": "switch-org"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert org_res.status_code == 201
+    org_id = org_res.json()["id"]
+
+    # 2. Switch organization context
+    switch_res = await client.post(
+        "/api/v1/auth/switch-organization",
+        json={"organization_id": org_id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert switch_res.status_code == 200
+    switch_data = switch_res.json()
+    assert "access_token" in switch_data
+    assert switch_data["active_org_id"] == org_id
+    assert switch_data["org_name"] == "Switch Org"
+    assert switch_data["org_role"] == "OWNER"
+
+    # 3. Switching to non-existent organization returns 404
+    import uuid
+    bad_org_res = await client.post(
+        "/api/v1/auth/switch-organization",
+        json={"organization_id": str(uuid.uuid4())},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert bad_org_res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_user_integrity_error_rollback(db_session: AsyncSession):
+    """Test concurrent duplicate registration race condition triggers clean rollback and 409 Conflict."""
+    user_in = UserCreate(email="unique.race@example.com", password="SecurePassword123!", full_name="Race User")
+    created = await create_user(db_session, user_in)
+    assert created.id is not None
+
+    # Calling create_user directly with the same email hits PostgreSQL unique constraint
+    with pytest.raises(HTTPException) as exc_info:
+        await create_user(db_session, user_in)
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "Email already registered"
+
+

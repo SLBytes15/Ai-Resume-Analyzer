@@ -1,6 +1,9 @@
+import logging
 import uuid
 from typing import Optional
+from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import (
     hash_password,
@@ -10,6 +13,8 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.user import UserCreate
+
+logger = logging.getLogger(__name__)
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
@@ -39,9 +44,21 @@ async def create_user(db: AsyncSession, user_in: UserCreate) -> User:
         is_active=True,
     )
     db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return user
+    try:
+        await db.commit()
+        await db.refresh(user)
+        return user
+    except IntegrityError as exc:
+        await db.rollback()
+        logger.warning(f"IntegrityError creating user for {normalized_email}: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already registered",
+        )
+    except Exception as exc:
+        await db.rollback()
+        logger.error(f"Unexpected error creating user: {exc}")
+        raise
 
 
 async def authenticate_user(

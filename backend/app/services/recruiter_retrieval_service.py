@@ -40,6 +40,12 @@ class RetrievedHiringContext:
     structured_data: Dict[str, Any] = field(default_factory=dict)
 
 
+def _format_skill_item(item: Any) -> str:
+    if isinstance(item, dict):
+        return item.get("skill") or item.get("canonical_skill") or item.get("requirement") or str(item)
+    return str(item)
+
+
 class RecruiterRetrievalService:
     """
     Organization-aware, allowlisted retrieval engine for Recruiter AI Assistant.
@@ -543,13 +549,16 @@ class RecruiterRetrievalService:
                 f"- **Confidence Level**: {screening_res.confidence_level}",
             ])
             if screening_res.matched_skills:
-                lines.append(f"- **Matched Required Skills**: {', '.join(screening_res.matched_skills)}")
-                evidence_snippets.append(f"Matched skills: {', '.join(screening_res.matched_skills)}")
+                ms_strs = [_format_skill_item(x) for x in screening_res.matched_skills]
+                lines.append(f"- **Matched Required Skills**: {', '.join(ms_strs)}")
+                evidence_snippets.append(f"Matched skills: {', '.join(ms_strs)}")
             if screening_res.preferred_skill_matches:
-                lines.append(f"- **Matched Preferred Skills**: {', '.join(screening_res.preferred_skill_matches)}")
+                ps_strs = [_format_skill_item(x) for x in screening_res.preferred_skill_matches]
+                lines.append(f"- **Matched Preferred Skills**: {', '.join(ps_strs)}")
             if screening_res.missing_evidence:
-                lines.append(f"- **Missing / Unverified Requirements**: {', '.join(screening_res.missing_evidence)}")
-                evidence_snippets.append(f"Missing evidence: {', '.join(screening_res.missing_evidence)}")
+                me_strs = [_format_skill_item(x) for x in screening_res.missing_evidence]
+                lines.append(f"- **Missing / Unverified Requirements**: {', '.join(me_strs)}")
+                evidence_snippets.append(f"Missing evidence: {', '.join(me_strs)}")
             if screening_res.experience_assessment:
                 lines.append(f"- **Experience Assessment**: {screening_res.experience_assessment}")
 
@@ -667,8 +676,10 @@ class RecruiterRetrievalService:
             app_id = str(c[0])
             app_ids.append(app_id)
             c_name = (c[8] or {}).get("full_name") or f"Applicant {idx}"
-            matched_str = ', '.join(c[5][:3]) if c[5] else 'None'
-            missing_str = ', '.join(c[6][:2]) if c[6] else 'None'
+            matched_items = [_format_skill_item(x) for x in (c[5] or [])[:3]]
+            matched_str = ', '.join(matched_items) if matched_items else 'None'
+            missing_items = [_format_skill_item(x) for x in (c[6] or [])[:2]]
+            missing_str = ', '.join(missing_items) if missing_items else 'None'
 
             lines.append(
                 f"| #{idx} | **{c_name}** | **{c[1]}** | {c[2]} | {c[3]} | {c[4]} | {matched_str} | {missing_str} |"
@@ -722,9 +733,11 @@ class RecruiterRetrievalService:
 
         for row in rows:
             for s in (row[0] or []):
-                demonstrated_freq[s] = demonstrated_freq.get(s, 0) + 1
+                s_name = _format_skill_item(s)
+                demonstrated_freq[s_name] = demonstrated_freq.get(s_name, 0) + 1
             for m in (row[1] or []):
-                missing_freq[m] = missing_freq.get(m, 0) + 1
+                m_name = _format_skill_item(m)
+                missing_freq[m_name] = missing_freq.get(m_name, 0) + 1
 
         top_demonstrated = sorted(demonstrated_freq.items(), key=lambda x: x[1], reverse=True)[:8]
         top_missing = sorted(missing_freq.items(), key=lambda x: x[1], reverse=True)[:8]

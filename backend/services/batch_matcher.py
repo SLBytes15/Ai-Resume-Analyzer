@@ -157,10 +157,18 @@ def _heuristic_rank_candidates(jd_data: dict, profiles_dir: str, min_years: int)
     return sorted(ranked_matches, key=lambda item: item["score"], reverse=True)
 
 
-def run_candidate_matcher(raw_text: str, profiles_dir: str = "../candidate_profiles", chroma_db_path: str = "../chroma_db"):
+def run_candidate_matcher(
+    raw_text: str = None,
+    profiles_dir: str = "../candidate_profiles",
+    chroma_db_path: str = "../chroma_db",
+    jd_data: dict = None,
+):
     """Return ranked candidates using a local heuristic fallback when vector search dependencies are unavailable."""
 
-    jd_data = extract_skills_from_raw_jd(raw_text)
+    if jd_data is None and raw_text is not None:
+        jd_data = extract_skills_from_raw_jd(raw_text)
+    elif jd_data is None:
+        jd_data = {}
     target_role = jd_data.get("role", "Unknown Role")
     required_skills = jd_data.get("skills", [])
     min_years = int(jd_data.get("minimum_years", 0))
