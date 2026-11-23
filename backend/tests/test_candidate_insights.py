@@ -471,53 +471,61 @@ async def test_insight_authorization_and_isolation(
     mock_evidence_extractor,
 ):
     """Verify organization role enforcement and cross-tenant isolation on insight retry."""
-    # Org A
-    owner_a = await register_user(client, "owner_a@example.com", "Owner A")
-    viewer_a = await register_user(client, "viewer_a@example.com", "Viewer A")
-    org_a = await create_org(client, owner_a, "Org A", "org-a-insights")
-    job_a = await create_job(client, owner_a, org_a, "Job A")
-    await publish_job(client, owner_a, org_a, job_a)
-
-    # Add viewer to Org A
-    await client.post(
-        f"/api/v1/recruiter/organizations/{org_a}/members",
-        json={"email": "viewer_a@example.com", "role": OrganizationRole.VIEWER.value},
-        headers={"Authorization": f"Bearer {owner_a}"},
+    fallback = candidate_insight_generator.generate_deterministic_fallback(
+        job_criteria={"title": "Job A", "required_skills": ["Python"]},
+        score_data={"total_score": 85.0},
+        extracted_projects=[],
+        extracted_experience=[],
     )
+    with patch.object(candidate_insight_generator, "generate_insight", new_callable=AsyncMock) as m_gen:
+        m_gen.return_value = (fallback, "qwen3:4b", False)
+        # Org A
+        owner_a = await register_user(client, "owner_a@example.com", "Owner A")
+        viewer_a = await register_user(client, "viewer_a@example.com", "Viewer A")
+        org_a = await create_org(client, owner_a, "Org A", "org-a-insights")
+        job_a = await create_job(client, owner_a, org_a, "Job A")
+        await publish_job(client, owner_a, org_a, job_a)
 
-    # Candidate apply & screen
-    cand_token = await register_user(client, "cand_iso@example.com", "Iso Candidate")
-    res_id = await upload_resume(client, cand_token, make_pdf("Python"), "iso.pdf")
-    await client.post(
-        f"/api/v1/jobs/{job_a}/applications",
-        json={"resume_id": res_id},
-        headers={"Authorization": f"Bearer {cand_token}"},
-    )
+        # Add viewer to Org A
+        await client.post(
+            f"/api/v1/recruiter/organizations/{org_a}/members",
+            json={"email": "viewer_a@example.com", "role": OrganizationRole.VIEWER.value},
+            headers={"Authorization": f"Bearer {owner_a}"},
+        )
 
-    trig = await client.post(
-        f"/api/v1/organizations/{org_a}/jobs/{job_a}/screenings",
-        headers={"Authorization": f"Bearer {owner_a}"},
-    )
-    run_id = trig.json()["id"]
-    res_list = await client.get(
-        f"/api/v1/organizations/{org_a}/screenings/{run_id}/results",
-        headers={"Authorization": f"Bearer {owner_a}"},
-    )
-    result_id = res_list.json()["items"][0]["id"]
+        # Candidate apply & screen
+        cand_token = await register_user(client, "cand_iso@example.com", "Iso Candidate")
+        res_id = await upload_resume(client, cand_token, make_pdf("Python"), "iso.pdf")
+        await client.post(
+            f"/api/v1/jobs/{job_a}/applications",
+            json={"resume_id": res_id},
+            headers={"Authorization": f"Bearer {cand_token}"},
+        )
 
-    # 1. Viewer cannot retry insight -> 403 Forbidden
-    viewer_retry = await client.post(
-        f"/api/v1/organizations/{org_a}/screenings/results/{result_id}/insight/retry",
-        headers={"Authorization": f"Bearer {viewer_a}"},
-    )
-    assert viewer_retry.status_code == 403
+        trig = await client.post(
+            f"/api/v1/organizations/{org_a}/jobs/{job_a}/screenings",
+            headers={"Authorization": f"Bearer {owner_a}"},
+        )
+        run_id = trig.json()["id"]
+        res_list = await client.get(
+            f"/api/v1/organizations/{org_a}/screenings/{run_id}/results",
+            headers={"Authorization": f"Bearer {owner_a}"},
+        )
+        result_id = res_list.json()["items"][0]["id"]
 
-    # 2. Org B recruiter cannot access or retry Org A's result insight
-    recruiter_b = await register_user(client, "recruiter_b@example.com", "Recruiter B")
-    org_b = await create_org(client, recruiter_b, "Org B", "org-b-insights")
+        # 1. Viewer cannot retry insight -> 403 Forbidden
+        viewer_retry = await client.post(
+            f"/api/v1/organizations/{org_a}/screenings/results/{result_id}/insight/retry",
+            headers={"Authorization": f"Bearer {viewer_a}"},
+        )
+        assert viewer_retry.status_code == 403
 
-    cross_retry = await client.post(
-        f"/api/v1/organizations/{org_b}/screenings/results/{result_id}/insight/retry",
-        headers={"Authorization": f"Bearer {recruiter_b}"},
-    )
-    assert cross_retry.status_code in (403, 404)
+        # 2. Org B recruiter cannot access or retry Org A's result insight
+        recruiter_b = await register_user(client, "recruiter_b@example.com", "Recruiter B")
+        org_b = await create_org(client, recruiter_b, "Org B", "org-b-insights")
+
+        cross_retry = await client.post(
+            f"/api/v1/organizations/{org_b}/screenings/results/{result_id}/insight/retry",
+            headers={"Authorization": f"Bearer {recruiter_b}"},
+        )
+        assert cross_retry.status_code in (403, 404)

@@ -250,5 +250,11 @@ flowchart TD
 │    (Milestone 7)     │ • Hybrid deterministic checks + Ollama LLM.     │
 │                      │ • Strictly isolated from M6 screening scores.   │
 │                      │ • Complete candidate privacy & prompt safety.   │
+├──────────────────────┼─────────────────────────────────────────────────┤
+│ 8. Career Assistant  │ • Interactive conversational career guidance.   │
+│    (Milestone 8)     │ • In-memory section-aware bounded retrieval.    │
+│                      │ • Evidence grounding with M7 context enrichment.│
+│                      │ • Deterministic fallback resilience.            │
+│                      │ • Recruiter isolation (404 on recruiter access).│
 └──────────────────────┴─────────────────────────────────────────────────┘
 ```

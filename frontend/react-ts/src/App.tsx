@@ -409,6 +409,43 @@ interface ResumeAnalysisListItem {
   created_at: string;
 }
 
+// Milestone 8: Candidate AI Career Assistant Interfaces
+interface CareerMessageItem {
+  id: string;
+  conversation_id: string;
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM';
+  content: string;
+  context_metadata?: {
+    resume_id?: string | null;
+    resume_sha256?: string | null;
+    m7_analysis_id?: string | null;
+    retrieved_sections?: string[];
+    evidence_snippets?: string[];
+    is_fallback?: boolean;
+  } | null;
+  model_name?: string | null;
+  created_at: string;
+}
+
+interface CareerConversationItem {
+  id: string;
+  candidate_id: string;
+  resume_id?: string | null;
+  resume_sha256?: string | null;
+  target_role?: string | null;
+  conversation_title: string;
+  conversation_type: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  message_count?: number;
+  last_message?: CareerMessageItem | null;
+}
+
+interface CareerConversationDetail extends CareerConversationItem {
+  messages: CareerMessageItem[];
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'public-jobs' | 'candidate' | 'recruiter'>('public-jobs');
 
@@ -468,8 +505,8 @@ export default function App() {
   const [recruiterJobKeywordFilter, setRecruiterJobKeywordFilter] = useState('');
   const [recruiterActionMessage, setRecruiterActionMessage] = useState('');
 
-  // Candidate Sub-Tabs: 'profile-resumes' | 'career-guidance' | 'my-applications'
-  const [candidateSubTab, setCandidateSubTab] = useState<'profile-resumes' | 'career-guidance' | 'my-applications'>('profile-resumes');
+  // Candidate Sub-Tabs: 'profile-resumes' | 'career-guidance' | 'career-assistant' | 'my-applications'
+  const [candidateSubTab, setCandidateSubTab] = useState<'profile-resumes' | 'career-guidance' | 'career-assistant' | 'my-applications'>('profile-resumes');
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const [myApplicationsLoading, setMyApplicationsLoading] = useState(false);
   const [myAppStatusFilter, setMyAppStatusFilter] = useState('');
@@ -485,6 +522,24 @@ export default function App() {
   const [analysisInProgress, setAnalysisInProgress] = useState<boolean>(false);
   const [analysisError, setAnalysisError] = useState<string>('');
   const [retryingAnalysisId, setRetryingAnalysisId] = useState<string | null>(null);
+
+  // M8: Candidate AI Career Assistant State
+  const [conversationsList, setConversationsList] = useState<CareerConversationItem[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState<boolean>(false);
+  const [activeConversation, setActiveConversation] = useState<CareerConversationDetail | null>(null);
+  const [activeConvLoading, setActiveConvLoading] = useState<boolean>(false);
+  const [messageInput, setMessageInput] = useState<string>('');
+  const [sendingMessage, setSendingMessage] = useState<boolean>(false);
+  const [chatError, setChatError] = useState<string>('');
+
+  // New Conversation Modal State
+  const [isNewConvModalOpen, setIsNewConvModalOpen] = useState<boolean>(false);
+  const [newConvResumeId, setNewConvResumeId] = useState<string>('');
+  const [newConvTargetRole, setNewConvTargetRole] = useState<string>('');
+  const [newConvPurpose, setNewConvPurpose] = useState<string>('CAREER_GUIDANCE');
+  const [newConvTitle, setNewConvTitle] = useState<string>('');
+  const [newConvInitialMsg, setNewConvInitialMsg] = useState<string>('');
+  const [creatingConv, setCreatingConv] = useState<boolean>(false);
 
   // Apply to Job Modal State
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -1533,6 +1588,151 @@ export default function App() {
     }
   };
 
+  // Milestone 8: Candidate AI Career Assistant Handlers
+  const fetchConversations = async () => {
+    if (!token) return;
+    setConversationsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/career/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setConversationsList(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch career conversations', err);
+    } finally {
+      setConversationsLoading(false);
+    }
+  };
+
+  const fetchConversationDetail = async (convId: string) => {
+    if (!token || !convId) return;
+    setActiveConvLoading(true);
+    setChatError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/career/conversations/${convId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveConversation(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch conversation detail', err);
+    } finally {
+      setActiveConvLoading(false);
+    }
+  };
+
+  const handleCreateConversation = async () => {
+    if (!token) return;
+    setCreatingConv(true);
+    setChatError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/career/conversations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resume_id: newConvResumeId || null,
+          target_role: newConvTargetRole.trim() || null,
+          conversation_purpose: newConvPurpose,
+          title: newConvTitle.trim() || null,
+          initial_message: newConvInitialMsg.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Failed to create conversation');
+      } else {
+        setIsNewConvModalOpen(false);
+        setNewConvInitialMsg('');
+        setNewConvTitle('');
+        await fetchConversations();
+        await fetchConversationDetail(data.id);
+      }
+    } catch (err) {
+      console.error('Failed to create conversation', err);
+    } finally {
+      setCreatingConv(false);
+    }
+  };
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!token || !activeConversation || !messageInput.trim() || sendingMessage) return;
+
+    const content = messageInput.trim();
+    setMessageInput('');
+    setSendingMessage(true);
+    setChatError('');
+
+    const tempUserMsg: CareerMessageItem = {
+      id: 'temp-' + Date.now(),
+      conversation_id: activeConversation.id,
+      role: 'USER',
+      content,
+      created_at: new Date().toISOString(),
+    };
+    setActiveConversation((prev) =>
+      prev ? { ...prev, messages: [...prev.messages, tempUserMsg] } : prev
+    );
+
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/career/conversations/${activeConversation.id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content, include_m7_analysis: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setChatError(data.detail || 'Failed to send message');
+        fetchConversationDetail(activeConversation.id);
+      } else {
+        setActiveConversation((prev) => {
+          if (!prev) return prev;
+          const filtered = prev.messages.filter((m) => m.id !== tempUserMsg.id);
+          return {
+            ...prev,
+            messages: [...filtered, data.user_message, data.assistant_message],
+            updated_at: new Date().toISOString(),
+          };
+        });
+        fetchConversations();
+      }
+    } catch (err: any) {
+      setChatError(err.message || 'Network error sending message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleDeleteConversation = async (convId: string, title: string) => {
+    if (!token) return;
+    if (!confirm(`Delete conversation "${title}"?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/career/conversations/${convId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        if (activeConversation?.id === convId) {
+          setActiveConversation(null);
+        }
+        fetchConversations();
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation', err);
+    }
+  };
+
   // Recruiter Match execution
   const handleMatch = async () => {
     if (!jdText.trim()) return;
@@ -2031,6 +2231,23 @@ export default function App() {
                       }`}
                     >
                       💡 Career Guidance
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCandidateSubTab('career-assistant');
+                        fetchConversations();
+                        if (!newConvResumeId && resumes.length > 0) {
+                          const activeRes = resumes.find((r) => r.is_active) || resumes[0];
+                          setNewConvResumeId(activeRes.id);
+                        }
+                      }}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        candidateSubTab === 'career-assistant'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      🤖 Career Assistant
                     </button>
                     <button
                       onClick={() => setCandidateSubTab('my-applications')}
@@ -2969,6 +3186,500 @@ export default function App() {
                             )}
                           </div>
                         )}
+                      </div>
+                    )}
+                  </div>
+                ) : candidateSubTab === 'career-assistant' ? (
+                  /* SUBTAB: CAREER ASSISTANT */
+                  <div className="flex flex-col gap-6">
+                    {/* Header Banner */}
+                    <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900/60 to-purple-950/40 border border-indigo-900/40 rounded-2xl p-6">
+                      <div className="flex flex-wrap justify-between items-start gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl">🤖</span>
+                            <h2 className="text-lg font-bold text-slate-100">Candidate AI Career Assistant</h2>
+                            <span className="text-[10px] bg-indigo-900/60 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded-full font-semibold">
+                              CONFIDENTIAL
+                            </span>
+                            <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded-full font-semibold">
+                              ZERO IMPACT ON RECRUITER SCORES
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
+                            Your private conversational career mentor. Explore target career paths, dissect skill gaps, design 30/60/90-day learning roadmaps, and practice technical interview questions grounded in your actual uploaded resume experience and verified achievements.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!newConvResumeId && resumes.length > 0) {
+                              const activeRes = resumes.find((r) => r.is_active) || resumes[0];
+                              setNewConvResumeId(activeRes.id);
+                            }
+                            setIsNewConvModalOpen(true);
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-2"
+                        >
+                          <span>💬</span>
+                          <span>New Conversation</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Main Chat Layout: 2 Columns */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[640px]">
+                      {/* Left: Conversations Sidebar (4 cols) */}
+                      <div className="lg:col-span-4 bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                            <span>🗂️</span> Saved Conversations
+                          </h3>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {conversationsList.length} thread{conversationsList.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+
+                        {/* Conversation List */}
+                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[560px]">
+                          {conversationsLoading && conversationsList.length === 0 ? (
+                            <div className="text-center py-8 text-indigo-400 animate-pulse text-xs">
+                              Loading conversations...
+                            </div>
+                          ) : conversationsList.length === 0 ? (
+                            <div className="text-center py-12 px-4 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                              <span className="text-2xl block mb-2">💬</span>
+                              <p className="font-semibold text-slate-400">No conversations yet</p>
+                              <p className="text-[11px] text-slate-600 mt-1">Start your first career advisory or interview prep thread.</p>
+                              <button
+                                onClick={() => setIsNewConvModalOpen(true)}
+                                className="mt-3 px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-semibold rounded-lg transition"
+                              >
+                                + Start Chat
+                              </button>
+                            </div>
+                          ) : (
+                            conversationsList.map((conv) => {
+                              const isSelected = activeConversation?.id === conv.id;
+                              return (
+                                <div
+                                  key={conv.id}
+                                  onClick={() => fetchConversationDetail(conv.id)}
+                                  className={`p-3 rounded-xl border cursor-pointer transition flex flex-col gap-1.5 group ${
+                                    isSelected
+                                      ? 'bg-indigo-950/40 border-indigo-700 shadow-md'
+                                      : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start gap-2">
+                                    <h4 className="text-xs font-semibold text-slate-200 line-clamp-1 group-hover:text-indigo-300 transition">
+                                      {conv.conversation_title}
+                                    </h4>
+                                    <button
+                                      title="Delete conversation"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteConversation(conv.id, conv.conversation_title);
+                                      }}
+                                      className="text-slate-600 hover:text-rose-400 text-xs p-0.5 rounded transition opacity-0 group-hover:opacity-100"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800/60 font-medium">
+                                      {conv.conversation_type.replace('_', ' ')}
+                                    </span>
+                                    {conv.target_role && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-medium line-clamp-1">
+                                        🎯 {conv.target_role}
+                                      </span>
+                                    )}
+                                    {conv.resume_id && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/40">
+                                        📄 Resume Pinned
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                    <span>{conv.message_count} message{conv.message_count === 1 ? '' : 's'}</span>
+                                    <span>{new Date(conv.updated_at).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Active Chat Pane (8 cols) */}
+                      <div className="lg:col-span-8 bg-slate-950/50 border border-slate-800 rounded-2xl flex flex-col overflow-hidden">
+                        {activeConvLoading ? (
+                          <div className="flex-1 flex items-center justify-center text-indigo-400 animate-pulse text-xs py-24">
+                            Loading conversation messages...
+                          </div>
+                        ) : !activeConversation ? (
+                          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                            <div className="w-16 h-16 rounded-2xl bg-indigo-950/60 border border-indigo-800/50 flex items-center justify-center text-3xl mb-4">
+                              🤖
+                            </div>
+                            <h3 className="text-base font-bold text-slate-200 mb-1">TalentLens Career Assistant</h3>
+                            <p className="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+                              Select an existing conversation from the left sidebar or start a new focused chat to explore career paths, analyze skill gaps, and prepare for interviews.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full text-left">
+                              <button
+                                onClick={() => {
+                                  setNewConvPurpose('CAREER_GUIDANCE');
+                                  setNewConvTitle('General Career Guidance & Strengths');
+                                  setIsNewConvModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-indigo-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>🌟</span> Career Guidance
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Review your resume strengths and demonstrated skills.
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNewConvPurpose('ROLE_TRANSITION');
+                                  setNewConvTitle('Target Role Transition Plan');
+                                  setIsNewConvModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-indigo-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>🎯</span> Role Transition
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Identify skill gaps and bridge into your desired role.
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNewConvPurpose('INTERVIEW_PREP');
+                                  setNewConvTitle('Technical Interview Preparation');
+                                  setIsNewConvModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-indigo-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>💼</span> Interview Practice
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Generate realistic technical questions based on your projects.
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNewConvPurpose('SKILL_DEVELOPMENT');
+                                  setNewConvTitle('30/60/90-Day Learning Roadmap');
+                                  setIsNewConvModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-indigo-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>📈</span> Learning Roadmap
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Structured technical milestones to level up your career.
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Chat Header */}
+                            <div className="p-4 bg-slate-900/70 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-sm font-bold text-slate-100">{activeConversation.conversation_title}</h3>
+                                  <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800 font-semibold">
+                                    {activeConversation.conversation_type.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-400">
+                                  {activeConversation.target_role && (
+                                    <span>🎯 Target: <strong className="text-slate-300">{activeConversation.target_role}</strong></span>
+                                  )}
+                                  {activeConversation.target_role && activeConversation.resume_id && <span>•</span>}
+                                  {activeConversation.resume_id ? (
+                                    <span className="text-purple-400 font-medium flex items-center gap-1">
+                                      📄 Resume Grounded
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-500 italic">No resume pinned</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Chat Messages Body */}
+                            <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[500px] min-h-[380px]">
+                              {activeConversation.messages.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 text-xs">
+                                  No messages yet. Send a message below to start your conversation!
+                                </div>
+                              ) : (
+                                activeConversation.messages.map((msg) => {
+                                  const isUser = msg.role === 'USER';
+                                  const isFallback = msg.context_metadata?.is_fallback;
+                                  const snippets = msg.context_metadata?.evidence_snippets || [];
+                                  return (
+                                    <div
+                                      key={msg.id}
+                                      className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1.5`}
+                                    >
+                                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                        <span>{isUser ? 'You' : 'Career Assistant'}</span>
+                                        <span>•</span>
+                                        <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        {isFallback && (
+                                          <span className="text-amber-400 font-medium">⚡ Advisory Fallback</span>
+                                        )}
+                                      </div>
+
+                                      <div
+                                        className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed ${
+                                          isUser
+                                            ? 'bg-indigo-600 text-white rounded-br-sm'
+                                            : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-sm shadow-md'
+                                        }`}
+                                      >
+                                        <div className="whitespace-pre-wrap">{msg.content}</div>
+
+                                        {/* Evidence Grounding Box */}
+                                        {!isUser && snippets.length > 0 && (
+                                          <div className="mt-3 pt-3 border-t border-slate-800/80">
+                                            <details className="cursor-pointer group">
+                                              <summary className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold list-none flex items-center gap-1">
+                                                <span>📌 Grounded in your resume ({snippets.length} references)</span>
+                                                <span className="group-open:rotate-180 transition-transform">▾</span>
+                                              </summary>
+                                              <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-indigo-900/60 text-[10px] text-slate-400 font-mono">
+                                                {snippets.map((snip, sIdx) => (
+                                                  <div key={sIdx} className="bg-slate-950/60 p-1.5 rounded">
+                                                    {snip}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </details>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+
+                              {/* Assistant Typing Indicator */}
+                              {sendingMessage && (
+                                <div className="flex items-center gap-3 text-xs text-indigo-400 bg-indigo-950/20 border border-indigo-900/30 rounded-xl p-3 max-w-xs animate-pulse">
+                                  <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                                  <span>Formulating career guidance...</span>
+                                </div>
+                              )}
+
+                              {chatError && (
+                                <div className="p-3 bg-rose-950/40 border border-rose-800 rounded-xl text-xs text-rose-300">
+                                  <span className="font-semibold block mb-0.5">Error:</span>
+                                  {chatError}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Prompt Suggestions Bar */}
+                            <div className="px-4 py-2 bg-slate-900/40 border-t border-slate-800 flex items-center gap-2 overflow-x-auto text-[11px] whitespace-nowrap">
+                              <span className="text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
+                                Suggestions:
+                              </span>
+                              <button
+                                onClick={() => setMessageInput('What are my strongest demonstrated technical skills?')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                💪 Strongest Skills
+                              </button>
+                              <button
+                                onClick={() => setMessageInput('What skills am I missing for my target role, and how can I bridge them?')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                🎯 Skill Gap Analysis
+                              </button>
+                              <button
+                                onClick={() => setMessageInput('Generate 5 technical interview questions based on my projects and experience.')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                💼 Interview Questions
+                              </button>
+                              <button
+                                onClick={() => setMessageInput('Create a 30-day learning roadmap to advance to senior level.')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                📅 30-Day Roadmap
+                              </button>
+                            </div>
+
+                            {/* Message Input Form */}
+                            <form onSubmit={handleSendMessage} className="p-4 bg-slate-900/80 border-t border-slate-800 flex gap-2">
+                              <input
+                                type="text"
+                                value={messageInput}
+                                onChange={(e) => setMessageInput(e.target.value)}
+                                placeholder="Ask about career direction, interview questions, resume impact, or skill roadmaps..."
+                                disabled={sendingMessage}
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                              />
+                              <button
+                                type="submit"
+                                disabled={sendingMessage || !messageInput.trim()}
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5"
+                              >
+                                {sendingMessage ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <span>Send</span>
+                                    <span>➤</span>
+                                  </>
+                                )}
+                              </button>
+                            </form>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* New Conversation Modal */}
+                    {isNewConvModalOpen && (
+                      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl flex flex-col gap-4">
+                          <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                              <span>🤖</span> Start New Career Conversation
+                            </h3>
+                            <button
+                              onClick={() => setIsNewConvModalOpen(false)}
+                              className="text-slate-500 hover:text-slate-300 text-sm font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div className="space-y-4 text-xs">
+                            {/* Purpose */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Conversation Purpose:
+                              </label>
+                              <select
+                                value={newConvPurpose}
+                                onChange={(e) => setNewConvPurpose(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="CAREER_GUIDANCE">Career Guidance & Strengths</option>
+                                <option value="ROLE_TRANSITION">Target Role Transition & Gaps</option>
+                                <option value="SKILL_DEVELOPMENT">Skill Development & Learning Roadmap</option>
+                                <option value="INTERVIEW_PREP">Technical Interview Preparation</option>
+                                <option value="RESUME_FEEDBACK">Resume Feedback & Framing</option>
+                                <option value="GENERAL">General Discussion</option>
+                              </select>
+                            </div>
+
+                            {/* Resume Version */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Pinned Resume Version:
+                              </label>
+                              <select
+                                value={newConvResumeId}
+                                onChange={(e) => setNewConvResumeId(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="">None (General advice without resume grounding)</option>
+                                {resumes.map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.original_filename} ({new Date(r.created_at).toLocaleDateString()}) {r.is_active ? '★ ACTIVE' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-[11px] text-slate-500 mt-1">
+                                Pinning a resume grounds the assistant in your actual experience, skills, and M7 qualitative insights.
+                              </p>
+                            </div>
+
+                            {/* Target Role */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Target Role (Optional):
+                              </label>
+                              <input
+                                type="text"
+                                value={newConvTargetRole}
+                                onChange={(e) => setNewConvTargetRole(e.target.value)}
+                                placeholder="e.g. Senior Backend Engineer, Data Architect"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            {/* Title */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Conversation Title (Optional):
+                              </label>
+                              <input
+                                type="text"
+                                value={newConvTitle}
+                                onChange={(e) => setNewConvTitle(e.target.value)}
+                                placeholder="e.g. Backend Transition Plan"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            {/* Initial Question */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Initial Question (Optional):
+                              </label>
+                              <textarea
+                                value={newConvInitialMsg}
+                                onChange={(e) => setNewConvInitialMsg(e.target.value)}
+                                placeholder="e.g. Based on my resume, what are my strongest skills and what should I focus on next?"
+                                rows={3}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500 resize-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setIsNewConvModalOpen(false)}
+                              disabled={creatingConv}
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCreateConversation}
+                              disabled={creatingConv}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition flex items-center gap-2"
+                            >
+                              {creatingConv ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Creating...</span>
+                                </>
+                              ) : (
+                                <span>Start Conversation</span>
+                              )}
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

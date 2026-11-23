@@ -286,3 +286,35 @@ M7 employs a dual-stage hybrid evaluation:
    - Actionable, prioritized improvement checklist.
    - Optional Target Role alignment without declaring candidate qualified/unqualified.
    - Pure Python deterministic advisory fallback if LLM inference is unavailable or fails.
+
+---
+
+## 9. Milestone 8: Candidate AI Career Assistant Architecture
+
+### 9.1 Multi-Milestone Separation of Concerns: M6 vs. M7 vs. M8
+
+TalentLens maintains clear boundaries across its AI subsystems:
+
+| Dimension | Milestone 6 (Screening Engine) | Milestone 7 (Resume Intelligence) | Milestone 8 (Career Assistant) |
+|---|---|---|---|
+| **Audience** | Recruiter / Hiring Team | Candidate (Private) | Candidate (Private) |
+| **Interaction** | Asynchronous batch job trigger | Static one-off analysis request | Interactive conversational threads |
+| **Output** | Deterministic score + recruiter insights | Section-by-section advisory report | Conversational career mentor & roadmap |
+| **Grounded Assets** | Submitted pinned resume & job reqs | Selected uploaded resume version | Selected resume, M7 findings, chat history |
+| **Scoring Impact** | Dictates applicant match rankings | Zero influence on M6 scores | **Zero influence** on M6 scores or rankings |
+| **Access Control** | Recruiter org-membership authorized | Candidate owner only | Candidate owner only (Recruiters get 404) |
+
+### 9.2 Section-Aware Bounded Retrieval Architecture
+
+Milestone 8 avoids heavy vector databases and uncalibrated external RAG infrastructure in favor of an in-memory, section-aware retrieval engine:
+1. **Query Intent Detection**: Matches user query terms and conversation purpose against regex keyword sets (`skills`, `projects`, `experience`, `interview`, `gap`).
+2. **Context Bounding**: Extracts only the relevant parsed resume segments (`skills`, `projects`, `work history`, `education`, `summary`).
+3. **M7 Qualitative Enrichment**: Optionally incorporates findings from the candidate's latest completed M7 qualitative analysis report.
+4. **Prompt Budgeting**: Restricts retrieved text to 1,500 words to ensure prompt safety and fast local inference on Apple M2 hardware ($<4$ seconds).
+
+### 9.3 Conversation Persistence & Safety Architecture
+
+- **Context Metadata on Messages**: Rather than duplicating resume text across message rows, messages store context provenance (`resume_id`, `resume_sha256`, `m7_analysis_id`, `retrieved_sections`, `evidence_snippets`, and `is_fallback`).
+- **Prompt Injection Defense**: Resume content is wrapped within `<untrusted_candidate_resume>` tags, and the system prompt explicitly commands disregard of any injection attempts.
+- **Deterministic Advisory Fallback**: If local Ollama inference fails or times out, the assistant automatically delivers a structured, rule-based response (STAR outlines, 30-day roadmap, or project framing) derived directly from retrieved records without service interruption.
+

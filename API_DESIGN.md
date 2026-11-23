@@ -304,3 +304,77 @@ Filenames are stripped of path traversals (`../`), control characters, and non-A
 - **Responses**:
   - `200 OK`: Re-executed analysis.
   - `400 Bad Request`: If analysis status is not `FAILED`.
+
+---
+
+## 8. Milestone 8: Candidate AI Career Assistant Endpoints
+
+### 8.1 Create Career Conversation
+- **Route**: `POST /api/v1/career/conversations`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Payload**:
+  ```json
+  {
+    "resume_id": "893c5be3-3b68-45e0-94cb-0bfdb9486c47",
+    "target_role": "Senior Backend Engineer",
+    "conversation_purpose": "ROLE_TRANSITION",
+    "title": "Backend Transition Strategy",
+    "initial_message": "What skills do I need to demonstrate for Senior Backend roles?"
+  }
+  ```
+- **Responses**:
+  - `201 Created`: `CareerConversationResponse` (if initial message provided, assistant reply is pre-generated).
+  - `404 Not Found`: If specified resume does not exist or belong to candidate.
+
+### 8.2 List Candidate Career Conversations
+- **Route**: `GET /api/v1/career/conversations`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Query Params**: `is_archived` (optional bool), `limit` (int, 1-100), `offset` (int)
+- **Response `200 OK`**: List of `CareerConversationResponse` with message counts and last message previews.
+
+### 8.3 Get Full Conversation Thread
+- **Route**: `GET /api/v1/career/conversations/{conversation_id}`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Response `200 OK`**: Complete `CareerConversationDetailResponse` including chronological `messages` list with context metadata.
+- **Response `404 Not Found`**: Conversation does not exist or belongs to another user.
+
+### 8.4 Post Message in Conversation
+- **Route**: `POST /api/v1/career/conversations/{conversation_id}/messages`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Payload**:
+  ```json
+  {
+    "content": "Generate 3 technical interview questions based on my projects.",
+    "include_m7_analysis": true
+  }
+  ```
+- **Responses**:
+  - `201 Created`:
+    ```json
+    {
+      "user_message": { "id": "...", "role": "USER", "content": "..." },
+      "assistant_message": {
+        "id": "...",
+        "role": "ASSISTANT",
+        "content": "...",
+        "context_metadata": {
+          "resume_id": "...",
+          "retrieved_sections": ["projects", "skills"],
+          "evidence_snippets": ["..."],
+          "is_fallback": false
+        }
+      }
+    }
+    ```
+  - `404 Not Found`: If conversation does not exist or candidate is unauthorized.
+
+### 8.5 Update Conversation
+- **Route**: `PATCH /api/v1/career/conversations/{conversation_id}`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Payload**: `{ "conversation_title": "New Title", "is_archived": true }`
+- **Response `200 OK`**: Updated `CareerConversationResponse`.
+
+### 8.6 Delete Conversation
+- **Route**: `DELETE /api/v1/career/conversations/{conversation_id}`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Response `204 No Content`**: Cascades and deletes conversation and all message records.

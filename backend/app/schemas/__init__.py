@@ -14,6 +14,17 @@ from app.schemas.candidate import (
     CandidateProfileResponse,
     CandidateProfileUpdate,
 )
+from app.schemas.career_assistant import (
+    CareerConversationCreateRequest,
+    CareerConversationDetailResponse,
+    CareerConversationResponse,
+    CareerConversationUpdateRequest,
+    CareerMessageCreateRequest,
+    CareerMessageResponse,
+    CareerMessageResponsePayload,
+    ConversationPurpose,
+    MessageRole,
+)
 from app.schemas.job import (
     JobBase,
     JobCreate,
@@ -119,4 +130,13 @@ __all__ = [
     "ImprovementPriorityItem",
     "ImprovementPriorityLevel",
     "TargetRoleAlignment",
+    "CareerConversationCreateRequest",
+    "CareerConversationResponse",
+    "CareerConversationDetailResponse",
+    "CareerConversationUpdateRequest",
+    "CareerMessageCreateRequest",
+    "CareerMessageResponse",
+    "CareerMessageResponsePayload",
+    "ConversationPurpose",
+    "MessageRole",
 ]

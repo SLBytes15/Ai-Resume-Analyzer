@@ -77,6 +77,12 @@ class CandidateProfile(Base):
         cascade="all, delete-orphan",
         order_by="desc(ResumeAnalysis.created_at)",
     )
+    career_conversations = relationship(
+        "CareerConversation",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+        order_by="desc(CareerConversation.updated_at)",
+    )
 
     def __repr__(self) -> str:
         return f"<CandidateProfile id={self.id} user_id={self.user_id}>"

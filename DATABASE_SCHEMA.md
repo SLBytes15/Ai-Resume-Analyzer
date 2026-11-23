@@ -791,3 +791,38 @@ CREATE INDEX idx_analyses_resume_created ON public.resume_analyses(resume_id, cr
 CREATE INDEX idx_analyses_resume_status ON public.resume_analyses(resume_id, status);
 CREATE INDEX ix_resume_analyses_resume_sha256 ON public.resume_analyses(resume_sha256);
 ```
+
+---
+
+## 10. Milestone 8: Candidate Career Conversations & Messages Tables
+
+```sql
+CREATE TABLE public.career_conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    candidate_id UUID NOT NULL REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
+    resume_id UUID NULL REFERENCES public.resumes(id) ON DELETE SET NULL,
+    resume_sha256 VARCHAR(64) NULL,
+    target_role VARCHAR(128) NULL,
+    conversation_title VARCHAR(255) NOT NULL DEFAULT 'New Conversation',
+    conversation_type VARCHAR(64) NOT NULL DEFAULT 'GENERAL',
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE public.career_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id UUID NOT NULL REFERENCES public.career_conversations(id) ON DELETE CASCADE,
+    role VARCHAR(32) NOT NULL,
+    content TEXT NOT NULL,
+    context_metadata JSONB NULL,
+    model_name VARCHAR(64) NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Indexes for performant candidate thread listing and message ordering
+CREATE INDEX idx_career_conv_candidate_updated ON public.career_conversations(candidate_id, updated_at DESC);
+CREATE INDEX idx_career_conv_resume ON public.career_conversations(resume_id);
+CREATE INDEX idx_career_conv_archived ON public.career_conversations(candidate_id, is_archived);
+CREATE INDEX idx_career_msg_conversation_created ON public.career_messages(conversation_id, created_at ASC);
+```

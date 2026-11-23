@@ -199,3 +199,22 @@ Candidates need actionable feedback on how their resumes communicate technical c
    - Resume content is strictly fenced as untrusted input.
    - No protected attributes, age, gender, or pedigree biases are evaluated.
    - No numerical scores or grades are assigned.
+
+---
+
+## ADR-008: Candidate AI Career Assistant Architecture (Milestone 8)
+
+### Context
+Candidates need an interactive conversational mentor to understand their profile, explore career transition paths, generate learning roadmaps, and practice technical interview questions based strictly on their actual uploaded experience. The feature must be strictly private to the candidate, resilient against model latency/failure, and independent of recruiter screening algorithms.
+
+### Decision
+1. **Lightweight Section-Aware Retrieval (No ChromaDB / Vector DB Required)**:
+   - For interactive conversational career mentoring, candidate resume data is already parsed into structured sections (`skills`, `projects`, `experience`, `education`, `summary`).
+   - Keyword-based intent classification maps queries directly to relevant sections, bounding prompt length to $< 1,500$ words and achieving $< 4$ second generation times on Apple M2 hardware without the latency and memory overhead of an external vector database.
+2. **Strict Privacy and Candidate-Only Access**:
+   - Recruiters and organization members have zero access to candidate career conversations (`GET` requests by recruiters return `404 Not Found`).
+   - Conversations are private to the candidate and strictly isolated from the M6 candidate screening engine and ranking leaderboards.
+3. **Structured Provenance Tracking**:
+   - Rather than duplicating raw resume text into message rows, each assistant message stores rich provenance metadata (`resume_id`, `resume_sha256`, `m7_analysis_id`, `retrieved_sections`, `evidence_snippets`, and `is_fallback`).
+4. **Deterministic Advisory Fallback**:
+   - In case of local model timeout or service unreachability, the assistant gracefully provides a rule-based advisory response covering STAR outlines, 30-day learning roadmaps, and project communication techniques directly derived from retrieved records.

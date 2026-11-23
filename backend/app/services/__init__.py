@@ -53,6 +53,18 @@ from app.services.candidate_insight_generator import (
     CandidateInsightGenerator,
     candidate_insight_generator,
 )
+from app.services.career_assistant_service import (
+    CareerAssistantService,
+    career_assistant_service,
+)
+from app.services.career_conversation_service import (
+    create_career_conversation,
+    delete_career_conversation,
+    get_candidate_conversation,
+    list_career_conversations,
+    post_candidate_message,
+    update_career_conversation,
+)
 from app.services.career_guidance_service import (
     CareerGuidanceService,
     career_guidance_service,
@@ -127,4 +139,12 @@ __all__ = [
     "list_resume_analyses",
     "get_resume_analysis_by_id",
     "retry_resume_analysis",
+    "career_assistant_service",
+    "CareerAssistantService",
+    "create_career_conversation",
+    "list_career_conversations",
+    "get_candidate_conversation",
+    "post_candidate_message",
+    "update_career_conversation",
+    "delete_career_conversation",
 ]

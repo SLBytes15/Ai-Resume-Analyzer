@@ -33,6 +33,8 @@ from app.models import (
     Resume,
     ResumeAnalysis,
     ScreeningInsight,
+    CareerConversation,
+    CareerMessage,
     ScreeningResult,
     ScreeningRun,
     User,
@@ -62,7 +64,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
         await session.execute(
             text(
-                "TRUNCATE TABLE resume_analyses, screening_insights, screening_results, screening_runs, application_status_history, applications, jobs, resumes, candidate_profiles, organization_memberships, organizations, users RESTART IDENTITY CASCADE;"
+                "TRUNCATE TABLE career_messages, career_conversations, resume_analyses, screening_insights, screening_results, screening_runs, application_status_history, applications, jobs, resumes, candidate_profiles, organization_memberships, organizations, users RESTART IDENTITY CASCADE;"
             )
         )
         await session.commit()

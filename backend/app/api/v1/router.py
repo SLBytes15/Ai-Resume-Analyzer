@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.v1.applications import router as candidate_applications_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.candidates import router as candidate_router
+from app.api.v1.career_assistant import router as career_assistant_router
 from app.api.v1.jobs import router as recruiter_jobs_router
 from app.api.v1.organizations import router as org_router
 from app.api.v1.public_jobs import router as public_jobs_router
@@ -27,3 +28,5 @@ api_router.include_router(screenings_router, prefix="/organizations", tags=["scr
 api_router.include_router(screenings_router, prefix="/recruiter/organizations", tags=["screenings"])
 # Milestone 7: Candidate Resume Intelligence & Career Guidance routes
 api_router.include_router(resume_analysis_router, tags=["resume-analysis"])
+# Milestone 8: Candidate AI Career Assistant routes
+api_router.include_router(career_assistant_router, prefix="/career", tags=["career-assistant"])

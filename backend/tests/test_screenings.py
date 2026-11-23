@@ -21,6 +21,7 @@ from app.services.evidence_extractor import (
     ExtractedProjectEntry,
     evidence_extractor,
 )
+from app.services.candidate_insight_generator import candidate_insight_generator
 
 
 def make_pdf(text: str = "Candidate Resume\nSkills: Python, FastAPI, PostgreSQL\nExperience: 3 years at Acme Corp") -> bytes:
@@ -65,6 +66,19 @@ def mock_evidence_extractor():
     )
     with patch.object(evidence_extractor, "extract_evidence", new_callable=AsyncMock) as m:
         m.return_value = mock_evidence
+        yield m
+
+
+@pytest.fixture(autouse=True)
+def mock_candidate_insight():
+    fallback = candidate_insight_generator.generate_deterministic_fallback(
+        job_criteria={"title": "Engineer", "required_skills": ["Python"]},
+        score_data={"total_score": 85.0},
+        extracted_projects=[],
+        extracted_experience=[],
+    )
+    with patch.object(candidate_insight_generator, "generate_insight", new_callable=AsyncMock) as m:
+        m.return_value = (fallback, "qwen3:4b", False)
         yield m
 
 

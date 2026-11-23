@@ -19,6 +19,8 @@ from app.models import (
     Application,
     ApplicationStatusHistory,
     CandidateProfile,
+    CareerConversation,
+    CareerMessage,
     Job,
     Organization,
     OrganizationMembership,
