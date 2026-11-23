@@ -248,3 +248,29 @@ Recruiters need an intelligent assistant to understand hiring pipelines, analyze
 5. **Deterministic Rule-Based Fallback**:
    - If Ollama is offline or times out, the assistant falls back to a deterministic rule-based generator that synthesizes pipeline metrics, score distributions, and candidate comparison tables directly from the retrieved database payload, setting `is_fallback: true`.
 
+---
+
+## ADR-010: Production Hardening, Observability, Resource Protection & Deployment Readiness (Milestone 10)
+
+### Context
+To transition TalentLens from a feature-complete development platform (M1–M9) to a production-ready system, the platform required systemic hardening against security misconfigurations, event loop starvation, host memory thrashing on 8GB Apple Silicon development environments, and unobservable failures.
+
+### Decision
+1. **Startup Security Validation**:
+   - When running in `production`, `Settings.validate_production_settings()` immediately raises a fatal `RuntimeError` if default development secret keys are detected or if `SECRET_KEY` has fewer than 32 characters.
+   - Swagger and ReDoc documentation routes are conditionally disabled in production via `DOCS_ENABLED`.
+2. **Database Check Constraint & Lifecycle Alignment**:
+   - Reconciled application lifecycle by officially incorporating `INTERVIEWING` into `ApplicationStatus` and updating PostgreSQL check constraints `ck_applications_status_valid` and `ck_status_history_new_status_valid` via Alembic migration `27af204e3f76`.
+   - Permitted recruiter transitions: `SHORTLISTED` $\rightarrow$ `INTERVIEWING` $\rightarrow$ `HIRED` / `REJECTED`.
+3. **Observability & Request Correlation**:
+   - Implemented `RequestIDMiddleware` adopting or generating UUID `X-Request-ID` across all HTTP transactions.
+   - Standardized on structured JSON logging containing request ID, timestamp, HTTP status, and duration in ms.
+   - Separated `/health/live` (process responsiveness) and `/health/ready` (tests database connectivity with `SELECT 1` and reports non-fatal Ollama availability).
+4. **Asynchronous Thread Offloading for Event Loop Protection**:
+   - Offloaded synchronous CPU-heavy operations (bcrypt password hashing/verification in `security.py`, PyMuPDF text extraction in `pdf_extractor.py`, and disk writes in `storage_service.py`) to worker threads via `asyncio.to_thread`.
+5. **Local AI Inference Serialization**:
+   - Serialized local Ollama inference using a shared global semaphore `ollama_inference_semaphore = asyncio.Semaphore(1)` to prevent host memory exhaustion and swap thrashing on Apple M2 (8GB RAM).
+6. **In-Memory Rate Limiting**:
+   - Implemented an in-memory sliding-window rate limiter on auth (15/min), upload (20/hr), and AI assistant endpoints (30/min) returning `HTTP 429 Too Many Requests` with `Retry-After`.
+
+

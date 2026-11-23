@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 from pathlib import Path
@@ -85,6 +86,12 @@ class StorageService:
 
         return rel_path
 
+    async def save_file_async(
+        self, candidate_id: uuid.UUID, resume_id: uuid.UUID, content: bytes
+    ) -> str:
+        """Non-blocking async wrapper to save file bytes to storage."""
+        return await asyncio.to_thread(self.save_file, candidate_id, resume_id, content)
+
     def delete_file(self, relative_path: str) -> bool:
         """Delete stored file if it exists."""
         try:
@@ -101,6 +108,10 @@ class StorageService:
         except Exception:
             pass
         return False
+
+    async def delete_file_async(self, relative_path: str) -> bool:
+        """Non-blocking async wrapper to delete stored file."""
+        return await asyncio.to_thread(self.delete_file, relative_path)
 
 
 storage_service = StorageService()

@@ -2,7 +2,12 @@ import uuid
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.security import hash_password, verify_password
+from app.core.security import (
+    hash_password,
+    hash_password_async,
+    verify_password,
+    verify_password_async,
+)
 from app.models.user import User
 from app.schemas.user import UserCreate
 
@@ -23,9 +28,9 @@ async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]
 
 
 async def create_user(db: AsyncSession, user_in: UserCreate) -> User:
-    """Create a new user with bcrypt-hashed password."""
+    """Create a new user with bcrypt-hashed password (offloaded to thread)."""
     normalized_email = user_in.email.strip().lower()
-    hashed_pwd = hash_password(user_in.password)
+    hashed_pwd = await hash_password_async(user_in.password)
 
     user = User(
         email=normalized_email,
@@ -42,10 +47,10 @@ async def create_user(db: AsyncSession, user_in: UserCreate) -> User:
 async def authenticate_user(
     db: AsyncSession, email: str, password: str
 ) -> Optional[User]:
-    """Authenticate user with email and plain password."""
+    """Authenticate user with email and plain password (offloaded to thread)."""
     user = await get_user_by_email(db, email)
     if not user:
         return None
-    if not verify_password(password, user.password_hash):
+    if not await verify_password_async(password, user.password_hash):
         return None
     return user

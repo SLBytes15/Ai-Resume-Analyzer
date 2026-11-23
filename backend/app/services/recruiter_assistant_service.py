@@ -3,6 +3,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 import httpx
 
+from app.core.ai_concurrency import ollama_inference_semaphore
 from app.core.config import settings
 from app.models.recruiter_assistant import RecruiterMessage
 from app.services.recruiter_retrieval_service import QueryIntent, RetrievedHiringContext
@@ -95,7 +96,8 @@ class RecruiterAssistantService:
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(url, json=payload)
+            async with ollama_inference_semaphore:
+                resp = await client.post(url, json=payload)
             if resp.status_code != 200:
                 raise RuntimeError(f"Ollama returned HTTP {resp.status_code}: {resp.text}")
             data = resp.json()

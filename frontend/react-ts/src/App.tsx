@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = (import.meta.env.VITE_API_URL as string) || 'http://127.0.0.1:8000';
 
 interface CandidateProfile {
   id: string;
@@ -137,7 +137,7 @@ interface CandidateApplication {
   organization_name: string;
   submitted_resume_id: string;
   resume_filename: string;
-  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'REJECTED' | 'HIRED' | 'WITHDRAWN';
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'INTERVIEWING' | 'REJECTED' | 'HIRED' | 'WITHDRAWN';
   cover_letter?: string | null;
   submitted_at: string;
   status_updated_at: string;
@@ -158,7 +158,7 @@ interface RecruiterApplication {
   candidate_headline?: string | null;
   submitted_resume_id: string;
   resume_filename: string;
-  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'REJECTED' | 'HIRED' | 'WITHDRAWN';
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'INTERVIEWING' | 'REJECTED' | 'HIRED' | 'WITHDRAWN';
   submitted_at: string;
   status_updated_at: string;
   withdrawn_at?: string | null;
@@ -717,12 +717,25 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (messageOrEvent?: string | React.MouseEvent) => {
     setToken('');
+    localStorage.removeItem('talentlens_token');
     setProfile(null);
     setResumes([]);
     setUserOrgs([]);
     setSelectedOrgId('');
+    setRecruiterJobs([]);
+    if (typeof messageOrEvent === 'string') {
+      setAuthError(messageOrEvent);
+    }
+  };
+
+  const handleResponseAuthCheck = (res: Response): boolean => {
+    if (res.status === 401) {
+      handleLogout('Session expired or unauthorized. Please log in again.');
+      return false;
+    }
+    return true;
   };
 
   // Public Jobs Operations
@@ -756,6 +769,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/v1/recruiter/organizations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!handleResponseAuthCheck(res)) return;
       if (res.ok) {
         const data = await res.json();
         setUserOrgs(data);
@@ -1371,6 +1385,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/v1/candidates/me/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!handleResponseAuthCheck(res)) return;
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
@@ -1431,6 +1446,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/v1/resumes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!handleResponseAuthCheck(res)) return;
       if (res.ok) {
         const data = await res.json();
         setResumes(data);
@@ -3916,6 +3932,7 @@ export default function App() {
                           <option value="SUBMITTED">Submitted</option>
                           <option value="UNDER_REVIEW">Under Review</option>
                           <option value="SHORTLISTED">Shortlisted</option>
+                          <option value="INTERVIEWING">Interviewing</option>
                           <option value="HIRED">Hired</option>
                           <option value="REJECTED">Rejected</option>
                           <option value="WITHDRAWN">Withdrawn</option>
@@ -4401,6 +4418,7 @@ export default function App() {
                           <option value="SUBMITTED">Submitted</option>
                           <option value="UNDER_REVIEW">Under Review</option>
                           <option value="SHORTLISTED">Shortlisted</option>
+                          <option value="INTERVIEWING">Interviewing</option>
                           <option value="HIRED">Hired</option>
                           <option value="REJECTED">Rejected</option>
                           <option value="WITHDRAWN">Withdrawn</option>
@@ -5948,6 +5966,13 @@ export default function App() {
                                     </>
                                   )}
                                   {selectedRecruiterAppDetail.status === 'SHORTLISTED' && (
+                                    <>
+                                      <option value="INTERVIEWING">Schedule / Start Interviewing</option>
+                                      <option value="HIRED">Mark as Hired</option>
+                                      <option value="REJECTED">Reject Application</option>
+                                    </>
+                                  )}
+                                  {selectedRecruiterAppDetail.status === 'INTERVIEWING' && (
                                     <>
                                       <option value="HIRED">Mark as Hired</option>
                                       <option value="REJECTED">Reject Application</option>

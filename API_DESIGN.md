@@ -479,3 +479,45 @@ All Recruiter AI endpoints require an authenticated user with an active recruite
 - **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
 - **Response `204 No Content`**: Cascades and permanently deletes conversation and all associated message records.
 
+---
+
+## 10. Milestone 10: Observability, Health & Resource Protection
+
+### 10.1 Liveness Probe
+- **Route**: `GET /health/live` (and `/api/v1/health/live`)
+- **Auth**: Public
+- **Response `200 OK`**:
+  ```json
+  {
+    "status": "alive",
+    "timestamp": "2026-11-23T16:50:00.000000+00:00",
+    "environment": "production"
+  }
+  ```
+
+### 10.2 Readiness Probe
+- **Route**: `GET /health/ready` (and `/api/v1/health/ready`)
+- **Auth**: Public
+- **Response `200 OK`**:
+  ```json
+  {
+    "status": "ready",
+    "timestamp": "2026-11-23T16:50:00.000000+00:00",
+    "environment": "production",
+    "database": "connected",
+    "ai_service": "available"
+  }
+  ```
+- **Response `503 Service Unavailable`**: Returned if PostgreSQL database connection fails (`SELECT 1`). Ollama reachability is reported separately without failing application readiness if core functionality is operational.
+
+### 10.3 Request Correlation & Tracing
+- **Header**: `X-Request-ID` is extracted or auto-generated as a UUID on every inbound request and injected into all outbound responses.
+- **Structured Access Logging**: Emits single-line JSON logs with timestamp, log level, request_id, method, path, HTTP status, and duration in milliseconds.
+
+### 10.4 Rate Limiting Specifications
+- When requests exceed configured window limits, the API returns `HTTP 429 Too Many Requests` with a `Retry-After: <seconds>` header:
+  - Auth endpoints (`/auth/login`, `/auth/register`): 15 requests / minute per IP.
+  - Resume uploads (`/resumes/upload`): 20 uploads / hour per candidate.
+  - AI Assistant & Screening: 30 requests / minute per user.
+
+

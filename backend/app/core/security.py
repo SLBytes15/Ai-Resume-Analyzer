@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 import bcrypt
@@ -12,6 +13,11 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
+async def hash_password_async(password: str) -> str:
+    """Non-blocking async wrapper for password hashing."""
+    return await asyncio.to_thread(hash_password, password)
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against bcrypt hash."""
     try:
@@ -21,6 +27,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         )
     except Exception:
         return False
+
+
+async def verify_password_async(plain_password: str, hashed_password: str) -> bool:
+    """Non-blocking async wrapper for password verification."""
+    return await asyncio.to_thread(verify_password, plain_password, hashed_password)
 
 
 def create_access_token(

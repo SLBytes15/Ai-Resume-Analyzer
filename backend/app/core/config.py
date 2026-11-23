@@ -23,6 +23,19 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # API Documentation in Production
+    DOCS_ENABLED: bool = True
+
+    # Rate Limiting & Resource Protection (Milestone 10)
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_AUTH_PER_MINUTE: int = 15
+    RATE_LIMIT_AI_PER_MINUTE: int = 30
+    RATE_LIMIT_UPLOAD_PER_HOUR: int = 20
+
+    # Observability & Logging (Milestone 10)
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
+
     # Database URLs
     DATABASE_URL: str = "postgresql+asyncpg://saranshop@/talentlens_mvp?host=/tmp"
     TEST_DATABASE_URL: str = "postgresql+asyncpg://saranshop@/talentlens_test?host=/tmp"
@@ -59,6 +72,19 @@ class Settings(BaseSettings):
             except Exception:
                 return [v]
         return v
+
+    def validate_production_settings(self) -> None:
+        """Enforce strict production security configuration at startup."""
+        if self.ENVIRONMENT.lower() == "production":
+            if (
+                self.SECRET_KEY
+                == "talentlens-mvp-super-secret-key-at-least-32-chars-long"
+                or len(self.SECRET_KEY) < 32
+            ):
+                raise RuntimeError(
+                    "FATAL: Insecure or default SECRET_KEY configured for production environment. "
+                    "You must provide a high-entropy secret key of at least 32 characters."
+                )
 
 
 settings = Settings()

@@ -1,3 +1,4 @@
+import asyncio
 import io
 import pymupdf as fitz
 
@@ -49,6 +50,10 @@ class PDFExtractor:
             return full_text
         finally:
             doc.close()
+
+    async def extract_text_async(self, content: bytes) -> str:
+        """Non-blocking async wrapper for PyMuPDF text extraction."""
+        return await asyncio.to_thread(self.extract_text, content)
 
 
 pdf_extractor = PDFExtractor()

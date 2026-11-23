@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
+from app.core.ai_concurrency import ollama_inference_semaphore
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -174,7 +175,8 @@ class EvidenceExtractor:
             "stream": False,
         }
 
-        response = await client.post(url, json=payload, timeout=self.timeout)
+        async with ollama_inference_semaphore:
+            response = await client.post(url, json=payload, timeout=self.timeout)
         response.raise_for_status()
         data = response.json()
         message = data.get("message", {}).get("content", "")

@@ -3,6 +3,7 @@ import logging
 import re
 from typing import Any, Dict, Optional
 import httpx
+from app.core.ai_concurrency import ollama_inference_semaphore
 from app.core.config import settings
 from app.schemas.resume import ParsedResumeData
 
@@ -109,7 +110,8 @@ class LLMParser:
             },
         }
 
-        response = await client.post(url, json=payload, timeout=self.timeout)
+        async with ollama_inference_semaphore:
+            response = await client.post(url, json=payload, timeout=self.timeout)
         if response.status_code != 200:
             raise LLMParserError(
                 f"Ollama returned HTTP {response.status_code}: {response.text}"

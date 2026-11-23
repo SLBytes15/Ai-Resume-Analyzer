@@ -263,5 +263,14 @@ flowchart TD
 │                      │ • No autonomous actions or status mutations.    │
 │                      │ • Structured SQL metrics + prompt sandboxing.   │
 │                      │ • Deterministic fallback when Ollama offline.   │
+├──────────────────────┼─────────────────────────────────────────────────┤
+│ 10. Hardening & Ops  │ • Production secret validation & startup gate.  │
+│    (Milestone 10)    │ • Aligned INTERVIEWING status & DB constraints. │
+│                      │ • Structured JSON logging & X-Request-ID trace. │
+│                      │ • Live & Ready health probes with DB checks.    │
+│                      │ • In-memory rate limiting (auth, upload, AI).   │
+│                      │ • Non-blocking thread offloading (bcrypt, PDF). │
+│                      │ • Ollama concurrency semaphore (8GB RAM safe).  │
+│                      │ • Frontend 401 token expiry handling & Vite CI. │
 └──────────────────────┴─────────────────────────────────────────────────┘
 ```

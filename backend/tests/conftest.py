@@ -18,8 +18,11 @@ from sqlalchemy.ext.asyncio import (
 
 # Ensure app package is importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+os.environ["ENVIRONMENT"] = "test"
 
 from app.core.config import settings
+
+settings.ENVIRONMENT = "test"
 from app.core.database import get_db
 from app.main import app
 from app.models import (

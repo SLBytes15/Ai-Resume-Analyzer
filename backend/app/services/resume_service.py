@@ -134,7 +134,7 @@ async def process_and_create_resume(
 
     # 2. Storage
     resume_id = uuid.uuid4()
-    rel_path = storage_service.save_file(candidate.id, resume_id, file_bytes)
+    rel_path = await storage_service.save_file_async(candidate.id, resume_id, file_bytes)
 
     # Check if candidate has any active resume; if not, make this one active
     existing_active = await db.execute(
@@ -163,7 +163,7 @@ async def process_and_create_resume(
 
     # 4. Extract PDF text
     try:
-        extracted_text = pdf_extractor.extract_text(file_bytes)
+        extracted_text = await pdf_extractor.extract_text_async(file_bytes)
         resume.extracted_text = extracted_text
         await db.commit()
     except PDFExtractionError as e:
@@ -247,7 +247,7 @@ async def delete_candidate_resume(
     await db.commit()
 
     # Clean up file on disk
-    storage_service.delete_file(storage_path)
+    await storage_service.delete_file_async(storage_path)
 
     # If deleted resume was active, optionally activate the newest remaining resume
     if was_active:

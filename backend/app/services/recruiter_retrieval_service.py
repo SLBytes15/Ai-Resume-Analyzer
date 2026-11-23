@@ -328,6 +328,7 @@ class RecruiterRetrievalService:
             f"- **Awaiting Initial Review (SUBMITTED)**: {status_map.get(ApplicationStatus.SUBMITTED.value, 0)}",
             f"- **Under Active Review**: {status_map.get(ApplicationStatus.UNDER_REVIEW.value, 0)}",
             f"- **Shortlisted**: {status_map.get(ApplicationStatus.SHORTLISTED.value, 0)}",
+            f"- **Interviewing**: {status_map.get(ApplicationStatus.INTERVIEWING.value, 0)}",
             f"- **Hired**: {status_map.get(ApplicationStatus.HIRED.value, 0)}",
             f"- **Rejected**: {status_map.get(ApplicationStatus.REJECTED.value, 0)}",
             f"- **Withdrawn by Candidate**: {status_map.get(ApplicationStatus.WITHDRAWN.value, 0)}",

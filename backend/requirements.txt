@@ -17,18 +17,10 @@ alembic>=1.13.0
 pyjwt>=2.8.0
 bcrypt>=4.1.0
 
-# Document Processing & Text Extraction (Milestone 3)
+# Document Processing & Text Extraction
 pymupdf>=1.24.0
 
 # Testing & Client
 httpx>=0.27.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
-
-# AI / Vector Store Stack (Milestone 4+)
-llama-index-core
-llama-index-embeddings-huggingface
-llama-index-vector-stores-chroma
-llama-index-llms-ollama
-chromadb
-pypdf

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import ValidationError
 
+from app.core.ai_concurrency import ollama_inference_semaphore
 from app.core.config import settings
 from app.schemas.screening import (
     CandidateInsightSchema,
@@ -165,7 +166,8 @@ class CandidateInsightGenerator:
                 "num_predict": 1024,
             },
         }
-        res = await client.post(url, json=payload, timeout=self.timeout)
+        async with ollama_inference_semaphore:
+            res = await client.post(url, json=payload, timeout=self.timeout)
         res.raise_for_status()
         data = res.json()
         return data.get("message", {}).get("content", "")

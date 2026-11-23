@@ -20,6 +20,7 @@ class ApplicationStatus(str, Enum):
     SUBMITTED = "SUBMITTED"
     UNDER_REVIEW = "UNDER_REVIEW"
     SHORTLISTED = "SHORTLISTED"
+    INTERVIEWING = "INTERVIEWING"
     REJECTED = "REJECTED"
     HIRED = "HIRED"
     WITHDRAWN = "WITHDRAWN"
@@ -37,6 +38,11 @@ ALLOWED_RECRUITER_TRANSITIONS = {
         ApplicationStatus.REJECTED.value,
     ],
     ApplicationStatus.SHORTLISTED.value: [
+        ApplicationStatus.INTERVIEWING.value,
+        ApplicationStatus.HIRED.value,
+        ApplicationStatus.REJECTED.value,
+    ],
+    ApplicationStatus.INTERVIEWING.value: [
         ApplicationStatus.HIRED.value,
         ApplicationStatus.REJECTED.value,
     ],
@@ -47,6 +53,7 @@ ALLOWED_CANDIDATE_TRANSITIONS = {
     ApplicationStatus.SUBMITTED.value: [ApplicationStatus.WITHDRAWN.value],
     ApplicationStatus.UNDER_REVIEW.value: [ApplicationStatus.WITHDRAWN.value],
     ApplicationStatus.SHORTLISTED.value: [ApplicationStatus.WITHDRAWN.value],
+    ApplicationStatus.INTERVIEWING.value: [ApplicationStatus.WITHDRAWN.value],
 }
 
 
@@ -134,7 +141,7 @@ class Application(Base):
     __table_args__ = (
         UniqueConstraint("job_id", "candidate_id", name="uq_job_candidate_application"),
         CheckConstraint(
-            "status IN ('SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED', 'REJECTED', 'HIRED', 'WITHDRAWN')",
+            "status IN ('SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED', 'INTERVIEWING', 'REJECTED', 'HIRED', 'WITHDRAWN')",
             name="ck_applications_status_valid",
         ),
         Index("idx_applications_org_status", "organization_id", "status"),
@@ -192,7 +199,7 @@ class ApplicationStatusHistory(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "new_status IN ('SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED', 'REJECTED', 'HIRED', 'WITHDRAWN')",
+            "new_status IN ('SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED', 'INTERVIEWING', 'REJECTED', 'HIRED', 'WITHDRAWN')",
             name="ck_status_history_new_status_valid",
         ),
         Index("idx_app_status_hist_app_id", "application_id"),

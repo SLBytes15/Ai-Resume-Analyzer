@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, UploadFile, s
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user
+from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.models.user import User
 from app.schemas.resume import ResumeListItemResponse, ResumeResponse
 from app.services.resume_service import (
@@ -26,6 +28,7 @@ router = APIRouter()
     response_model=ResumeResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Upload and process a candidate resume PDF",
+    dependencies=[Depends(rate_limit(max_requests=settings.RATE_LIMIT_UPLOAD_PER_HOUR, window_seconds=3600))],
 )
 async def upload_resume(
     file: UploadFile = File(...),
