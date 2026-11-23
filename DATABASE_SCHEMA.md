@@ -826,3 +826,36 @@ CREATE INDEX idx_career_conv_resume ON public.career_conversations(resume_id);
 CREATE INDEX idx_career_conv_archived ON public.career_conversations(candidate_id, is_archived);
 CREATE INDEX idx_career_msg_conversation_created ON public.career_messages(conversation_id, created_at ASC);
 ```
+
+---
+
+## 11. Milestone 9: Recruiter AI Conversations & Messages Tables
+
+```sql
+CREATE TABLE public.recruiter_conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    created_by_user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    conversation_title VARCHAR(255) NOT NULL DEFAULT 'Hiring Intelligence Chat',
+    conversation_type VARCHAR(64) NOT NULL DEFAULT 'GENERAL_HIRING',
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE public.recruiter_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id UUID NOT NULL REFERENCES public.recruiter_conversations(id) ON DELETE CASCADE,
+    role VARCHAR(32) NOT NULL,
+    content TEXT NOT NULL,
+    context_metadata JSONB NULL,
+    model_name VARCHAR(64) NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Organization-Scoped Retrieval & Performance Indexes
+CREATE INDEX idx_recruiter_conv_org_updated ON public.recruiter_conversations(organization_id, updated_at DESC);
+CREATE INDEX idx_recruiter_conv_org_archived ON public.recruiter_conversations(organization_id, is_archived);
+CREATE INDEX ix_recruiter_conversations_organization_id ON public.recruiter_conversations(organization_id);
+CREATE INDEX idx_recruiter_msg_conv_created ON public.recruiter_messages(conversation_id, created_at ASC);
+```

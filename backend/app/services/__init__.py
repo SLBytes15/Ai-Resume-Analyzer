@@ -65,6 +65,24 @@ from app.services.career_conversation_service import (
     post_candidate_message,
     update_career_conversation,
 )
+from app.services.recruiter_assistant_service import (
+    RecruiterAssistantService,
+    recruiter_assistant_service,
+)
+from app.services.recruiter_conversation_service import (
+    create_recruiter_conversation,
+    delete_recruiter_conversation,
+    get_recruiter_conversation,
+    list_recruiter_conversations,
+    post_recruiter_message,
+    update_recruiter_conversation,
+)
+from app.services.recruiter_retrieval_service import (
+    QueryIntent,
+    RecruiterRetrievalService,
+    RetrievedHiringContext,
+    recruiter_retrieval_service,
+)
 from app.services.career_guidance_service import (
     CareerGuidanceService,
     career_guidance_service,
@@ -147,4 +165,16 @@ __all__ = [
     "post_candidate_message",
     "update_career_conversation",
     "delete_career_conversation",
+    "recruiter_retrieval_service",
+    "RecruiterRetrievalService",
+    "QueryIntent",
+    "RetrievedHiringContext",
+    "recruiter_assistant_service",
+    "RecruiterAssistantService",
+    "create_recruiter_conversation",
+    "list_recruiter_conversations",
+    "get_recruiter_conversation",
+    "post_recruiter_message",
+    "update_recruiter_conversation",
+    "delete_recruiter_conversation",
 ]

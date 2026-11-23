@@ -25,6 +25,17 @@ from app.schemas.career_assistant import (
     ConversationPurpose,
     MessageRole,
 )
+from app.schemas.recruiter_assistant import (
+    RecruiterConversationCreateRequest,
+    RecruiterConversationDetailResponse,
+    RecruiterConversationResponse,
+    RecruiterConversationType,
+    RecruiterConversationUpdateRequest,
+    RecruiterMessageCreateRequest,
+    RecruiterMessageResponse,
+    RecruiterMessageResponsePayload,
+    RecruiterMessageRole,
+)
 from app.schemas.job import (
     JobBase,
     JobCreate,
@@ -139,4 +150,13 @@ __all__ = [
     "CareerMessageResponsePayload",
     "ConversationPurpose",
     "MessageRole",
+    "RecruiterConversationCreateRequest",
+    "RecruiterConversationResponse",
+    "RecruiterConversationDetailResponse",
+    "RecruiterConversationUpdateRequest",
+    "RecruiterMessageCreateRequest",
+    "RecruiterMessageResponse",
+    "RecruiterMessageResponsePayload",
+    "RecruiterConversationType",
+    "RecruiterMessageRole",
 ]

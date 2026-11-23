@@ -318,3 +318,36 @@ Milestone 8 avoids heavy vector databases and uncalibrated external RAG infrastr
 - **Prompt Injection Defense**: Resume content is wrapped within `<untrusted_candidate_resume>` tags, and the system prompt explicitly commands disregard of any injection attempts.
 - **Deterministic Advisory Fallback**: If local Ollama inference fails or times out, the assistant automatically delivers a structured, rule-based response (STAR outlines, 30-day roadmap, or project framing) derived directly from retrieved records without service interruption.
 
+---
+
+## 10. Milestone 9: Recruiter AI Assistant & Hiring Intelligence Architecture
+
+### 10.1 Complete System Boundary Matrix (M6 vs. M7 vs. M8 vs. M9)
+
+| Architectural Dimension | M6: Screening Engine | M7: Resume Intelligence | M8: Career Assistant | M9: Recruiter AI Assistant |
+|---|---|---|---|---|
+| **Audience** | Recruiter / Hiring Team | Candidate (Private) | Candidate (Private) | Recruiter / Hiring Team |
+| **Tenancy & Scope** | Organization Requisition | Candidate Account | Candidate Account | **Strictly Active Organization** |
+| **Interaction** | Batch screening trigger | Static report request | Conversational mentor | Conversational decision support |
+| **Primary Output** | Score (0–100) + Insights | Improvement suggestions | Skill roadmaps & STAR prep | Verified pipeline & applicant intelligence |
+| **Grounded Assets** | Submitted resume & JD | Selected resume version | Selected resume & M7 findings | Jobs, Apps, Screening runs, Insights, Resumes |
+| **Scoring Role** | Calculates scores & ranks | Zero score influence | Zero score influence | **Explains verified scores (Never modifies)** |
+| **Autonomous Action**| None (Recruiter review) | None (Advisory report) | None (Mentorship) | **Strictly Zero (No status change, no auto-hire)** |
+| **Recruiter Access** | Org membership authorized | Recruiter gets 403/404 | Recruiter gets 404 | Org membership authorized (`X-Organization-Id`) |
+
+### 10.2 Allowlisted Query-Intent & Safe SQL Retrieval
+
+M9 strictly forbids raw NL-to-SQL execution or LLM calculation of database metrics:
+1. **Allowlisted Intent Routing**: Recruiter inquiries are classified into controlled intents (`HIRING_OVERVIEW`, `JOB_SUMMARY`, `APPLICATION_STATUS_SUMMARY`, `SCREENING_SUMMARY`, `CANDIDATE_EVIDENCE`, `CANDIDATE_COMPARISON`, `SKILL_DISTRIBUTION`, `RECRUITMENT_PIPELINE`, `GENERAL_RECRUITMENT_QUESTION`).
+2. **Deterministic SQL Execution**: Calculations (counts, distributions, averages, percentiles, ranking) are computed in Python/SQL under strict `organization_id == current_org_id` WHERE clauses.
+3. **LLM Explanatory Persona**: Ollama (`qwen3:4b` / `llama3.2:1b`) receives verified figures inside `<verified_organization_data>` tags and generates natural explanations, comparisons, and evidence breakdowns.
+4. **Context Provenance**: Messages track `retrieved_job_ids`, `retrieved_app_ids`, `screening_run_ids`, `sources_used`, `evidence_snippets`, and `is_fallback`.
+
+### 10.3 Hiring Safety & Fairness Guarantees
+
+- **No Autonomous Hiring**: The assistant cannot shortlist, reject, hire, alter screening scores, or send candidate messages.
+- **Fairness Protections**: Prompts strictly prohibit evaluation or inference of age, gender, race, religion, disability, marital status, nationality, appearance, or university pedigree.
+- **Missing Evidence Differentiation**: Assistant explicitly distinguishes between verified resume evidence and unevidenced requirements.
+- **Deterministic Fallback Resilience**: Rule-based fallback formats verified structured database records into markdown when local inference is unavailable.
+
+

@@ -35,6 +35,8 @@ from app.models import (
     ScreeningInsight,
     CareerConversation,
     CareerMessage,
+    RecruiterConversation,
+    RecruiterMessage,
     ScreeningResult,
     ScreeningRun,
     User,

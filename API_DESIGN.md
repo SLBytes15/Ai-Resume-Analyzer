@@ -378,3 +378,104 @@ Filenames are stripped of path traversals (`../`), control characters, and non-A
 - **Route**: `DELETE /api/v1/career/conversations/{conversation_id}`
 - **Auth**: Candidate JWT (`Bearer <token>`)
 - **Response `204 No Content`**: Cascades and deletes conversation and all message records.
+
+---
+
+## 9. Milestone 9: Recruiter AI Assistant & Hiring Intelligence Endpoints
+
+All Recruiter AI endpoints require an authenticated user with an active recruiter/admin/owner membership in the current organization. Context is resolved securely via database lookup (`get_active_recruiter_context`), never from untrusted client-supplied org IDs.
+
+### 9.1 Create Recruiter Conversation
+- **Route**: `POST /api/v1/recruiter-ai/conversations`
+- **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
+- **Payload**:
+  ```json
+  {
+    "job_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "conversation_type": "JOB_HIRING_QUERY",
+    "title": "Backend Hiring Pipeline Review",
+    "initial_message": "What is our current screening status for this position?"
+  }
+  ```
+- **Responses**:
+  - `201 Created`: `RecruiterConversationDetailResponse` with initialized thread and optional pre-generated assistant response.
+  - `404 Not Found`: If specified `job_id` does not exist or does not belong to the recruiter's active organization.
+
+### 9.2 List Recruiter Conversations
+- **Route**: `GET /api/v1/recruiter-ai/conversations`
+- **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
+- **Query Params**:
+  - `job_id` (optional UUID filter)
+  - `conversation_type` (optional enum filter: `ORGANIZATION_OVERVIEW`, `JOB_HIRING_QUERY`, `CANDIDATE_DEEP_DIVE`, `CANDIDATE_COMPARISON`, `PIPELINE_ANALYTICS`, `GENERAL_RECRUITING`)
+  - `is_archived` (optional bool)
+  - `limit` (int, 1-100, default 20)
+  - `offset` (int, default 0)
+- **Response `200 OK`**: List of `RecruiterConversationResponse` records scoped exclusively to the recruiter's active organization.
+
+### 9.3 Get Recruiter Conversation Thread
+- **Route**: `GET /api/v1/recruiter-ai/conversations/{conversation_id}`
+- **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
+- **Response `200 OK`**: Complete `RecruiterConversationDetailResponse` with chronological message list, context metadata, sources used, and evidence citations.
+- **Response `404 Not Found`**: Conversation does not exist or belongs to another organization.
+
+### 9.4 Post Message in Recruiter Conversation
+- **Route**: `POST /api/v1/recruiter-ai/conversations/{conversation_id}/messages`
+- **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
+- **Payload**:
+  ```json
+  {
+    "content": "Compare the top screened candidates and highlight their verified skills.",
+    "job_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+  }
+  ```
+- **Responses**:
+  - `201 Created`:
+    ```json
+    {
+      "user_message": {
+        "id": "...",
+        "role": "USER",
+        "content": "..."
+      },
+      "assistant_message": {
+        "id": "...",
+        "role": "ASSISTANT",
+        "content": "...",
+        "context_metadata": {
+          "query_intent": "CANDIDATE_COMPARISON",
+          "organization_id": "...",
+          "job_id": "...",
+          "candidate_count": 3,
+          "is_fallback": false
+        },
+        "sources_used": [
+          "Job Requirements (ID: ...)",
+          "Screening Results (3 candidates)",
+          "Candidate Resumes & Work Experience"
+        ],
+        "evidence_citations": [
+          {
+            "candidate_name": "Jane Doe",
+            "candidate_id": "...",
+            "screening_score": 85.0,
+            "status": "SHORTLISTED",
+            "matched_skills": ["Python", "FastAPI", "PostgreSQL"],
+            "key_evidence": "5 years building microservices with FastAPI"
+          }
+        ]
+      }
+    }
+    ```
+  - `404 Not Found`: Conversation does not exist or belongs to another organization.
+
+### 9.5 Update Recruiter Conversation
+- **Route**: `PATCH /api/v1/recruiter-ai/conversations/{conversation_id}`
+- **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
+- **Payload**: `{ "title": "Updated Title", "is_archived": true }`
+- **Response `200 OK`**: Updated `RecruiterConversationResponse`.
+
+### 9.6 Delete Recruiter Conversation
+- **Route**: `DELETE /api/v1/recruiter-ai/conversations/{conversation_id}`
+- **Auth**: Recruiter JWT (`Bearer <token>`) with active org context
+- **Response `204 No Content`**: Cascades and permanently deletes conversation and all associated message records.
+

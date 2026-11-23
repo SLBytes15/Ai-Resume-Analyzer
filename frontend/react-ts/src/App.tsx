@@ -446,6 +446,42 @@ interface CareerConversationDetail extends CareerConversationItem {
   messages: CareerMessageItem[];
 }
 
+interface RecruiterAiMessageItem {
+  id: string;
+  conversation_id: string;
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM';
+  content: string;
+  context_metadata?: {
+    organization_id?: string;
+    intent?: string;
+    retrieved_job_ids?: string[];
+    retrieved_app_ids?: string[];
+    screening_run_ids?: string[];
+    sources_used?: string[];
+    evidence_snippets?: string[];
+    is_fallback?: boolean;
+  } | null;
+  model_name?: string | null;
+  created_at: string;
+}
+
+interface RecruiterAiConversationItem {
+  id: string;
+  organization_id: string;
+  created_by_user_id: string;
+  conversation_title: string;
+  conversation_type: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  message_count?: number;
+  last_message?: RecruiterAiMessageItem | null;
+}
+
+interface RecruiterAiConversationDetail extends RecruiterAiConversationItem {
+  messages: RecruiterAiMessageItem[];
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'public-jobs' | 'candidate' | 'recruiter'>('public-jobs');
 
@@ -496,7 +532,7 @@ export default function App() {
   const [publicSort, setPublicSort] = useState<'newest' | 'oldest'>('newest');
 
   // Recruiter Management State
-  const [recruiterSubTab, setRecruiterSubTab] = useState<'jobs' | 'applications' | 'screening' | 'matcher'>('jobs');
+  const [recruiterSubTab, setRecruiterSubTab] = useState<'jobs' | 'applications' | 'screening' | 'matcher' | 'recruiter-ai'>('jobs');
   const [userOrgs, setUserOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   const [recruiterJobs, setRecruiterJobs] = useState<RecruiterJob[]>([]);
@@ -581,6 +617,21 @@ export default function App() {
   const [triggerError, setTriggerError] = useState('');
   const [expandedResultIds, setExpandedResultIds] = useState<Record<string, boolean>>({});
   const [retryingInsight, setRetryingInsight] = useState(false);
+
+  // M9: Recruiter AI Assistant & Hiring Intelligence State
+  const [recruiterAiConversations, setRecruiterAiConversations] = useState<RecruiterAiConversationItem[]>([]);
+  const [recruiterAiLoading, setRecruiterAiLoading] = useState<boolean>(false);
+  const [activeRecruiterAiConv, setActiveRecruiterAiConv] = useState<RecruiterAiConversationDetail | null>(null);
+  const [activeRecruiterAiLoading, setActiveRecruiterAiLoading] = useState<boolean>(false);
+  const [recruiterAiInput, setRecruiterAiInput] = useState<string>('');
+  const [recruiterAiSending, setRecruiterAiSending] = useState<boolean>(false);
+  const [recruiterAiError, setRecruiterAiError] = useState<string>('');
+  const [recruiterAiSelectedJobId, setRecruiterAiSelectedJobId] = useState<string>('');
+  const [isNewRecruiterAiModalOpen, setIsNewRecruiterAiModalOpen] = useState<boolean>(false);
+  const [newRecruiterAiTitle, setNewRecruiterAiTitle] = useState<string>('');
+  const [newRecruiterAiType, setNewRecruiterAiType] = useState<string>('GENERAL_HIRING');
+  const [newRecruiterAiInitialMsg, setNewRecruiterAiInitialMsg] = useState<string>('');
+  const [creatingRecruiterAiConv, setCreatingRecruiterAiConv] = useState<boolean>(false);
 
   // Job Form Modal State (Create / Edit)
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -1730,6 +1781,164 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to delete conversation', err);
+    }
+  };
+
+  // Milestone 9: Recruiter AI Assistant Handlers
+  const fetchRecruiterAiConversations = async (orgIdOverride?: string) => {
+    const orgId = orgIdOverride || selectedOrgId;
+    if (!token || !orgId) return;
+    setRecruiterAiLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/recruiter-ai/conversations`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Organization-Id': orgId,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRecruiterAiConversations(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch recruiter AI conversations', err);
+    } finally {
+      setRecruiterAiLoading(false);
+    }
+  };
+
+  const fetchRecruiterAiConversationDetail = async (convId: string) => {
+    if (!token || !selectedOrgId || !convId) return;
+    setActiveRecruiterAiLoading(true);
+    setRecruiterAiError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/recruiter-ai/conversations/${convId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Organization-Id': selectedOrgId,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveRecruiterAiConv(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch recruiter AI conversation detail', err);
+    } finally {
+      setActiveRecruiterAiLoading(false);
+    }
+  };
+
+  const handleCreateRecruiterAiConversation = async () => {
+    if (!token || !selectedOrgId) return;
+    setCreatingRecruiterAiConv(true);
+    setRecruiterAiError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/recruiter-ai/conversations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Organization-Id': selectedOrgId,
+        },
+        body: JSON.stringify({
+          conversation_title: newRecruiterAiTitle.trim() || null,
+          conversation_type: newRecruiterAiType,
+          initial_message: newRecruiterAiInitialMsg.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'Failed to create conversation');
+      } else {
+        setIsNewRecruiterAiModalOpen(false);
+        setNewRecruiterAiInitialMsg('');
+        setNewRecruiterAiTitle('');
+        await fetchRecruiterAiConversations(selectedOrgId);
+        await fetchRecruiterAiConversationDetail(data.id);
+      }
+    } catch (err) {
+      console.error('Failed to create recruiter AI conversation', err);
+    } finally {
+      setCreatingRecruiterAiConv(false);
+    }
+  };
+
+  const handleSendRecruiterAiMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!token || !selectedOrgId || !activeRecruiterAiConv || !recruiterAiInput.trim() || recruiterAiSending) return;
+
+    const content = recruiterAiInput.trim();
+    setRecruiterAiInput('');
+    setRecruiterAiSending(true);
+    setRecruiterAiError('');
+
+    const tempUserMsg: RecruiterAiMessageItem = {
+      id: 'temp-' + Date.now(),
+      conversation_id: activeRecruiterAiConv.id,
+      role: 'USER',
+      content,
+      created_at: new Date().toISOString(),
+    };
+    setActiveRecruiterAiConv((prev) =>
+      prev ? { ...prev, messages: [...prev.messages, tempUserMsg] } : prev
+    );
+
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/recruiter-ai/conversations/${activeRecruiterAiConv.id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Organization-Id': selectedOrgId,
+        },
+        body: JSON.stringify({
+          content,
+          job_id: recruiterAiSelectedJobId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRecruiterAiError(data.detail || 'Failed to send message');
+        fetchRecruiterAiConversationDetail(activeRecruiterAiConv.id);
+      } else {
+        setActiveRecruiterAiConv((prev) => {
+          if (!prev) return prev;
+          const filtered = prev.messages.filter((m) => m.id !== tempUserMsg.id);
+          return {
+            ...prev,
+            messages: [...filtered, data.user_message, data.assistant_message],
+            updated_at: new Date().toISOString(),
+          };
+        });
+        fetchRecruiterAiConversations(selectedOrgId);
+      }
+    } catch (err: any) {
+      setRecruiterAiError(err.message || 'Network error sending inquiry');
+    } finally {
+      setRecruiterAiSending(false);
+    }
+  };
+
+  const handleDeleteRecruiterAiConversation = async (convId: string, title: string) => {
+    if (!token || !selectedOrgId) return;
+    if (!confirm(`Delete conversation "${title}"?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/recruiter-ai/conversations/${convId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Organization-Id': selectedOrgId,
+        },
+      });
+      if (res.ok) {
+        if (activeRecruiterAiConv?.id === convId) {
+          setActiveRecruiterAiConv(null);
+        }
+        fetchRecruiterAiConversations(selectedOrgId);
+      }
+    } catch (err) {
+      console.error('Failed to delete recruiter AI conversation', err);
     }
   };
 
@@ -3936,6 +4145,19 @@ export default function App() {
                     >
                       AI Matcher Pipeline
                     </button>
+                    <button
+                      onClick={() => {
+                        setRecruiterSubTab('recruiter-ai');
+                        if (selectedOrgId) fetchRecruiterAiConversations(selectedOrgId);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                        recruiterSubTab === 'recruiter-ai'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>🤖</span> Hiring Assistant
+                    </button>
                   </div>
                 </div>
 
@@ -4653,6 +4875,489 @@ export default function App() {
                         )}
                       </div>
                     </section>
+                  </div>
+                )}
+
+                {/* SUBTAB 5: RECRUITER AI ASSISTANT & HIRING INTELLIGENCE */}
+                {recruiterSubTab === 'recruiter-ai' && (
+                  <div className="flex flex-col gap-6">
+                    {/* Header Banner */}
+                    <div className="bg-gradient-to-r from-purple-950/60 via-slate-900/60 to-indigo-950/50 border border-purple-900/40 rounded-2xl p-6">
+                      <div className="flex flex-wrap justify-between items-start gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl">🤖</span>
+                            <h2 className="text-lg font-bold text-slate-100">Recruiter AI Assistant & Hiring Intelligence</h2>
+                            <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded-full font-semibold">
+                              ACTIVE ORG: {activeOrg?.name || 'Selected Organization'}
+                            </span>
+                            <span className="text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 px-2 py-0.5 rounded-full font-semibold">
+                              DECISION SUPPORT ONLY
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
+                            Natural-language hiring intelligence grounded strictly in your organization's authorized jobs, applicants, and M6 screening results. Inquire about pipeline distributions, evaluate applicant evidence, and compare top candidates side-by-side.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setIsNewRecruiterAiModalOpen(true)}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition flex items-center gap-2"
+                        >
+                          <span>💬</span>
+                          <span>New AI Thread</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Main Layout: 2 Columns */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[640px]">
+                      {/* Left: Conversation List (4 cols) */}
+                      <div className="lg:col-span-4 bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3">
+                        <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                            <span>🗂️</span> Organization Threads
+                          </h3>
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {recruiterAiConversations.length} conversation{recruiterAiConversations.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+
+                        {/* Conversation Cards */}
+                        <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[560px]">
+                          {recruiterAiLoading && recruiterAiConversations.length === 0 ? (
+                            <div className="text-center py-8 text-purple-400 animate-pulse text-xs">
+                              Loading conversations...
+                            </div>
+                          ) : recruiterAiConversations.length === 0 ? (
+                            <div className="text-center py-12 px-4 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                              <span className="text-2xl block mb-2">🧠</span>
+                              <p className="font-semibold text-slate-400">No hiring conversations yet</p>
+                              <p className="text-[11px] text-slate-600 mt-1">Start a thread to analyze hiring metrics, jobs, or applicants.</p>
+                              <button
+                                onClick={() => setIsNewRecruiterAiModalOpen(true)}
+                                className="mt-3 px-3 py-1.5 bg-purple-600/80 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition"
+                              >
+                                + Start Conversation
+                              </button>
+                            </div>
+                          ) : (
+                            recruiterAiConversations.map((conv) => {
+                              const isSelected = activeRecruiterAiConv?.id === conv.id;
+                              return (
+                                <div
+                                  key={conv.id}
+                                  onClick={() => fetchRecruiterAiConversationDetail(conv.id)}
+                                  className={`p-3 rounded-xl border cursor-pointer transition flex flex-col gap-1.5 group ${
+                                    isSelected
+                                      ? 'bg-purple-950/40 border-purple-700 shadow-md'
+                                      : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start gap-2">
+                                    <h4 className="text-xs font-semibold text-slate-200 line-clamp-1 group-hover:text-purple-300 transition">
+                                      {conv.conversation_title}
+                                    </h4>
+                                    <button
+                                      title="Delete conversation"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteRecruiterAiConversation(conv.id, conv.conversation_title);
+                                      }}
+                                      className="text-slate-600 hover:text-rose-400 text-xs p-0.5 rounded transition opacity-0 group-hover:opacity-100"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/60 font-medium">
+                                      {conv.conversation_type.replace('_', ' ')}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
+                                    <span>{conv.message_count} message{conv.message_count === 1 ? '' : 's'}</span>
+                                    <span>{new Date(conv.updated_at).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Active Chat Area (8 cols) */}
+                      <div className="lg:col-span-8 bg-slate-950/50 border border-slate-800 rounded-2xl flex flex-col overflow-hidden">
+                        {activeRecruiterAiLoading ? (
+                          <div className="flex-1 flex items-center justify-center text-purple-400 animate-pulse text-xs py-24">
+                            Loading conversation messages...
+                          </div>
+                        ) : !activeRecruiterAiConv ? (
+                          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                            <div className="w-16 h-16 rounded-2xl bg-purple-950/60 border border-purple-800/50 flex items-center justify-center text-3xl mb-4">
+                              🧠
+                            </div>
+                            <h3 className="text-base font-bold text-slate-200 mb-1">Recruiter AI Assistant</h3>
+                            <p className="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+                              Select an existing conversation thread from the left or launch an inquiry below to analyze hiring activity, explain candidate screening scores, or compare applicants.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full text-left">
+                              <button
+                                onClick={() => {
+                                  setNewRecruiterAiType('GENERAL_HIRING');
+                                  setNewRecruiterAiTitle('Organization Hiring Overview');
+                                  setNewRecruiterAiInitialMsg('How many applicants do we have across our published jobs, and what is our status distribution?');
+                                  setIsNewRecruiterAiModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-purple-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>📊</span> Hiring Overview
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Review active jobs, applicant counts, and status pipeline.
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNewRecruiterAiType('JOB_ANALYSIS');
+                                  setNewRecruiterAiTitle('Job-Level Intelligence');
+                                  setNewRecruiterAiInitialMsg('Summarize our active jobs and their applicant pools.');
+                                  setIsNewRecruiterAiModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-purple-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>💼</span> Job Intelligence
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Analyze specific requisitions and screening runs.
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNewRecruiterAiType('CANDIDATE_COMPARISON');
+                                  setNewRecruiterAiTitle('Candidate Comparison');
+                                  setNewRecruiterAiInitialMsg('Compare the top 3 candidates for our latest job posting.');
+                                  setIsNewRecruiterAiModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-purple-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>⚖️</span> Candidate Comparison
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Structured side-by-side evaluation of top-scoring applicants.
+                                </span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNewRecruiterAiType('PIPELINE_METRICS');
+                                  setNewRecruiterAiTitle('Skill & Pipeline Metrics');
+                                  setNewRecruiterAiInitialMsg('What are the most commonly demonstrated skills and most frequently missing requirements?');
+                                  setIsNewRecruiterAiModalOpen(true);
+                                }}
+                                className="p-3 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-purple-600 rounded-xl transition flex flex-col gap-1 text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                  <span>📈</span> Skill Distribution
+                                </span>
+                                <span className="text-[11px] text-slate-500">
+                                  Identify talent trends and common requirement gaps.
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Chat Header */}
+                            <div className="p-4 bg-slate-900/70 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-sm font-bold text-slate-100">{activeRecruiterAiConv.conversation_title}</h3>
+                                  <span className="text-[10px] px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold">
+                                    {activeRecruiterAiConv.conversation_type.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
+                                  <span>Organization: <strong className="text-slate-300">{activeOrg?.name || 'Current'}</strong></span>
+                                </div>
+                              </div>
+
+                              {/* Optional Job Context Selector */}
+                              {recruiterJobs.length > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <label className="text-[11px] text-slate-400 font-medium">Focus Job:</label>
+                                  <select
+                                    value={recruiterAiSelectedJobId}
+                                    onChange={(e) => setRecruiterAiSelectedJobId(e.target.value)}
+                                    className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-purple-500"
+                                  >
+                                    <option value="">All Organization Jobs</option>
+                                    {recruiterJobs.map((j) => (
+                                      <option key={j.id} value={j.id}>
+                                        {j.title} ({j.status})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Chat Messages */}
+                            <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[500px] min-h-[380px]">
+                              {activeRecruiterAiConv.messages.length === 0 ? (
+                                <div className="text-center py-12 text-slate-500 text-xs">
+                                  No inquiries in this thread yet. Send a question below to analyze your hiring data!
+                                </div>
+                              ) : (
+                                activeRecruiterAiConv.messages.map((msg) => {
+                                  const isUser = msg.role === 'USER';
+                                  const isFallback = msg.context_metadata?.is_fallback;
+                                  const sources = msg.context_metadata?.sources_used || [];
+                                  const snippets = msg.context_metadata?.evidence_snippets || [];
+
+                                  return (
+                                    <div
+                                      key={msg.id}
+                                      className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1.5`}
+                                    >
+                                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                        <span>{isUser ? 'You (Recruiter)' : 'Hiring Assistant'}</span>
+                                        <span>•</span>
+                                        <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        {isFallback && (
+                                          <span className="text-amber-400 font-medium">⚡ Advisory Fallback</span>
+                                        )}
+                                      </div>
+
+                                      <div
+                                        className={`max-w-[90%] rounded-2xl p-4 text-xs leading-relaxed ${
+                                          isUser
+                                            ? 'bg-purple-600 text-white rounded-br-sm'
+                                            : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-sm shadow-md'
+                                        }`}
+                                      >
+                                        <div className="whitespace-pre-wrap">{msg.content}</div>
+
+                                        {/* Sources & Grounding Box */}
+                                        {!isUser && (sources.length > 0 || snippets.length > 0) && (
+                                          <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-2">
+                                            {sources.length > 0 && (
+                                              <div className="text-[10px] text-slate-400 flex flex-wrap items-center gap-1.5">
+                                                <strong className="text-purple-400 font-semibold">Sources verified:</strong>
+                                                {sources.map((src, sIdx) => (
+                                                  <span key={sIdx} className="bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800 text-slate-300 font-mono text-[9px]">
+                                                    {src}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+
+                                            {snippets.length > 0 && (
+                                              <details className="cursor-pointer group">
+                                                <summary className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold list-none flex items-center gap-1">
+                                                  <span>📌 Supporting Evidence & Citations ({snippets.length})</span>
+                                                  <span className="group-open:rotate-180 transition-transform">▾</span>
+                                                </summary>
+                                                <div className="mt-1.5 space-y-1 pl-2 border-l-2 border-purple-900/60 text-[10px] text-slate-400 font-mono">
+                                                  {snippets.map((snip, sIdx) => (
+                                                    <div key={sIdx} className="bg-slate-950/60 p-1 rounded">
+                                                      • {snip}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </details>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+
+                              {/* Assistant Typing Indicator */}
+                              {recruiterAiSending && (
+                                <div className="flex items-center gap-3 text-xs text-purple-400 bg-purple-950/20 border border-purple-900/30 rounded-xl p-3 max-w-xs animate-pulse">
+                                  <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                                  <span>Analyzing hiring records & synthesizing report...</span>
+                                </div>
+                              )}
+
+                              {recruiterAiError && (
+                                <div className="p-3 bg-rose-950/40 border border-rose-800 rounded-xl text-xs text-rose-300">
+                                  <span className="font-semibold block mb-0.5">Error:</span>
+                                  {recruiterAiError}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Prompt Suggestions Bar */}
+                            <div className="px-4 py-2 bg-slate-900/40 border-t border-slate-800 flex items-center gap-2 overflow-x-auto text-[11px] whitespace-nowrap">
+                              <span className="text-slate-500 font-semibold text-[10px] uppercase tracking-wider">
+                                Suggestions:
+                              </span>
+                              <button
+                                onClick={() => setRecruiterAiInput('How many applicants do we have across our published jobs?')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                📊 Hiring Overview
+                              </button>
+                              <button
+                                onClick={() => setRecruiterAiInput('Summarize the screening results and top candidates for our active jobs.')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                ⚡ Screening Summary
+                              </button>
+                              <button
+                                onClick={() => setRecruiterAiInput('Compare the top 3 candidates for this position side-by-side.')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                ⚖️ Compare Top 3
+                              </button>
+                              <button
+                                onClick={() => setRecruiterAiInput('What are the most commonly demonstrated skills and most frequently missing requirements?')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                📈 Skill Gaps
+                              </button>
+                              <button
+                                onClick={() => setRecruiterAiInput('Show the current recruitment pipeline and applications awaiting review.')}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                              >
+                                ⏳ Pipeline Status
+                              </button>
+                            </div>
+
+                            {/* Message Input Form */}
+                            <form onSubmit={handleSendRecruiterAiMessage} className="p-4 bg-slate-900/80 border-t border-slate-800 flex gap-2">
+                              <input
+                                type="text"
+                                value={recruiterAiInput}
+                                onChange={(e) => setRecruiterAiInput(e.target.value)}
+                                placeholder="Ask about applicant volume, screening results, missing skills, or candidate comparisons..."
+                                disabled={recruiterAiSending}
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                              />
+                              <button
+                                type="submit"
+                                disabled={recruiterAiSending || !recruiterAiInput.trim()}
+                                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition flex items-center gap-1.5"
+                              >
+                                {recruiterAiSending ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <>
+                                    <span>Send</span>
+                                    <span>➤</span>
+                                  </>
+                                )}
+                              </button>
+                            </form>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* New Recruiter AI Conversation Modal */}
+                    {isNewRecruiterAiModalOpen && (
+                      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 max-w-lg w-full shadow-2xl flex flex-col gap-4">
+                          <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                              <span>🤖</span> Start New Hiring Intelligence Thread
+                            </h3>
+                            <button
+                              onClick={() => setIsNewRecruiterAiModalOpen(false)}
+                              className="text-slate-500 hover:text-slate-300 text-sm font-bold"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div className="space-y-4 text-xs">
+                            {/* Organization Notice */}
+                            <div className="p-3 bg-purple-950/30 border border-purple-800/50 rounded-xl text-purple-300">
+                              <span className="font-semibold block mb-0.5">Organization Context:</span>
+                              <span>This conversation is scoped strictly to <strong>{activeOrg?.name || 'Selected Organization'}</strong>.</span>
+                            </div>
+
+                            {/* Purpose Type */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Conversation Focus:
+                              </label>
+                              <select
+                                value={newRecruiterAiType}
+                                onChange={(e) => setNewRecruiterAiType(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
+                              >
+                                <option value="GENERAL_HIRING">General Hiring Intelligence</option>
+                                <option value="JOB_ANALYSIS">Job-Level Analysis & Requirements</option>
+                                <option value="APPLICANT_SCREENING">Applicant Screening Evidence</option>
+                                <option value="CANDIDATE_COMPARISON">Candidate Comparison</option>
+                                <option value="PIPELINE_METRICS">Pipeline Metrics & Skill Gaps</option>
+                              </select>
+                            </div>
+
+                            {/* Title */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Conversation Title (Optional):
+                              </label>
+                              <input
+                                type="text"
+                                value={newRecruiterAiTitle}
+                                onChange={(e) => setNewRecruiterAiTitle(e.target.value)}
+                                placeholder="e.g. Q4 Backend Hiring Review"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-purple-500"
+                              />
+                            </div>
+
+                            {/* Opening Question */}
+                            <div>
+                              <label className="block text-slate-300 font-semibold mb-1">
+                                Initial Inquiry (Optional):
+                              </label>
+                              <textarea
+                                value={newRecruiterAiInitialMsg}
+                                onChange={(e) => setNewRecruiterAiInitialMsg(e.target.value)}
+                                placeholder="e.g. How many applicants do we have across our published jobs?"
+                                rows={3}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-purple-500 resize-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setIsNewRecruiterAiModalOpen(false)}
+                              disabled={creatingRecruiterAiConv}
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCreateRecruiterAiConversation}
+                              disabled={creatingRecruiterAiConv}
+                              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-lg transition flex items-center gap-2"
+                            >
+                              {creatingRecruiterAiConv ? (
+                                <>
+                                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  <span>Creating...</span>
+                                </>
+                              ) : (
+                                <span>Start Thread</span>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

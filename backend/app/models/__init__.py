@@ -13,6 +13,12 @@ from app.models.career_assistant import (
     ConversationPurpose,
     MessageRole,
 )
+from app.models.recruiter_assistant import (
+    RecruiterConversation,
+    RecruiterConversationType,
+    RecruiterMessage,
+    RecruiterMessageRole,
+)
 from app.models.job import EmploymentType, Job, JobStatus, WorkplaceType
 from app.models.organization import Organization, OrganizationMembership, OrganizationRole
 from app.models.resume_analysis import AnalysisStatus, ResumeAnalysis
@@ -58,4 +64,8 @@ __all__ = [
     "CareerMessage",
     "ConversationPurpose",
     "MessageRole",
+    "RecruiterConversation",
+    "RecruiterMessage",
+    "RecruiterConversationType",
+    "RecruiterMessageRole",
 ]

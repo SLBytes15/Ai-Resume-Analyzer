@@ -218,3 +218,33 @@ Candidates need an interactive conversational mentor to understand their profile
    - Rather than duplicating raw resume text into message rows, each assistant message stores rich provenance metadata (`resume_id`, `resume_sha256`, `m7_analysis_id`, `retrieved_sections`, `evidence_snippets`, and `is_fallback`).
 4. **Deterministic Advisory Fallback**:
    - In case of local model timeout or service unreachability, the assistant gracefully provides a rule-based advisory response covering STAR outlines, 30-day learning roadmaps, and project communication techniques directly derived from retrieved records.
+
+---
+
+## ADR-009: Recruiter AI Assistant & Organization-Scoped Hiring Intelligence Architecture (Milestone 9)
+
+### Context
+Recruiters need an intelligent assistant to understand hiring pipelines, analyze screened applicants, compare candidates side-by-side, inspect resume evidence, and prepare targeted interview questions. However, recruitment AI carries high regulatory and ethical risks:
+1. It must **never** make autonomous hiring decisions, automatically change applicant statuses, or modify screening scores.
+2. It must **never** leak cross-tenant data or expose private candidate conversations (M8) or candidate-owned resume intelligence (M7).
+3. LLMs are notoriously prone to hallucinating counts, averages, and dates; numerical aggregations must be computed deterministically in SQL/Python, not hallucinated by the model.
+4. AI responses must not introduce bias based on demographic indicators (age, gender, ethnicity, disability) or arbitrary resume attributes (gaps, prestige).
+
+### Decision
+1. **Strictly Advisory Decision Support (Non-Autonomous)**:
+   - The recruiter assistant is strictly an explanatory decision-support tool.
+   - It cannot mutate `job_applications.status`, create or alter `screening_results.overall_score`, or dispatch candidate notifications.
+2. **Database-Validated Active Organization Context**:
+   - Every assistant operation requires `get_active_recruiter_context`, which verifies the user's active membership in PostgreSQL (`organization_memberships.is_active = TRUE`).
+   - All SQL queries explicitly join on `organization_id`. Cross-tenant retrieval is architecturally impossible.
+   - Candidate career conversations (M8) and candidate-owned resume analyses (M7) are completely omitted from recruiter assistant retrieval.
+3. **Allowlisted Query-Intent Routing (No Free-Form SQL Generation)**:
+   - Rather than allowing the LLM to generate arbitrary SQL queries (high security and hallucination risk), queries are classified against an allowlist of 9 predefined intents:
+     - `HIRING_OVERVIEW`, `JOB_SUMMARY`, `APPLICATION_STATUS_SUMMARY`, `SCREENING_SUMMARY`, `CANDIDATE_EVIDENCE`, `CANDIDATE_COMPARISON`, `SKILL_DISTRIBUTION`, `RECRUITMENT_PIPELINE`, `GENERAL_RECRUITMENT_QUESTION`.
+   - Metrics, counts, and aggregations are computed directly in Python/SQL.
+4. **Prompt Sandboxing & Fairness Directives**:
+   - Retrieved data is wrapped in strict `<verified_organization_data>` isolation tags with anti-injection instructions.
+   - System prompts enforce strict neutrality: evaluated evidence is restricted to demonstrated technical skills, verified job experience, and screening run findings. Demographic indicators and pedigree bias are forbidden.
+5. **Deterministic Rule-Based Fallback**:
+   - If Ollama is offline or times out, the assistant falls back to a deterministic rule-based generator that synthesizes pipeline metrics, score distributions, and candidate comparison tables directly from the retrieved database payload, setting `is_fallback: true`.
+

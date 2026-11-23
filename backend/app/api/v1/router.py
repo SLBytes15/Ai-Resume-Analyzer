@@ -7,6 +7,7 @@ from app.api.v1.jobs import router as recruiter_jobs_router
 from app.api.v1.organizations import router as org_router
 from app.api.v1.public_jobs import router as public_jobs_router
 from app.api.v1.recruiter_applications import router as recruiter_applications_router
+from app.api.v1.recruiter_assistant import router as recruiter_ai_router
 from app.api.v1.resume_analysis import router as resume_analysis_router
 from app.api.v1.resumes import router as resume_router
 from app.api.v1.screenings import router as screenings_router
@@ -30,3 +31,5 @@ api_router.include_router(screenings_router, prefix="/recruiter/organizations", 
 api_router.include_router(resume_analysis_router, tags=["resume-analysis"])
 # Milestone 8: Candidate AI Career Assistant routes
 api_router.include_router(career_assistant_router, prefix="/career", tags=["career-assistant"])
+# Milestone 9: Recruiter AI Assistant & Hiring Intelligence routes
+api_router.include_router(recruiter_ai_router, prefix="/recruiter-ai", tags=["recruiter-ai"])

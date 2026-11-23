@@ -256,5 +256,12 @@ flowchart TD
 │                      │ • Evidence grounding with M7 context enrichment.│
 │                      │ • Deterministic fallback resilience.            │
 │                      │ • Recruiter isolation (404 on recruiter access).│
+├──────────────────────┼─────────────────────────────────────────────────┤
+│ 9. Recruiter AI      │ • Organization-aware conversational assistant.  │
+│    (Milestone 9)     │ • Allowlisted intent routing (9 safe queries).  │
+│                      │ • DB-verified organization membership isolation.│
+│                      │ • No autonomous actions or status mutations.    │
+│                      │ • Structured SQL metrics + prompt sandboxing.   │
+│                      │ • Deterministic fallback when Ollama offline.   │
 └──────────────────────┴─────────────────────────────────────────────────┘
 ```

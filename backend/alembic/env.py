@@ -24,6 +24,8 @@ from app.models import (
     Job,
     Organization,
     OrganizationMembership,
+    RecruiterConversation,
+    RecruiterMessage,
     Resume,
     ResumeAnalysis,
     ScreeningResult,
