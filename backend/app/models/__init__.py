@@ -9,6 +9,7 @@ from app.models.base import Base
 from app.models.candidate import CandidateProfile, ParsingStatus, Resume
 from app.models.job import EmploymentType, Job, JobStatus, WorkplaceType
 from app.models.organization import Organization, OrganizationMembership, OrganizationRole
+from app.models.resume_analysis import AnalysisStatus, ResumeAnalysis
 from app.models.screening import (
     ScreeningConfidence,
     ScreeningInsight,
@@ -45,4 +46,6 @@ __all__ = [
     "ScreeningResultStatus",
     "ScreeningInsightStatus",
     "ScreeningConfidence",
+    "ResumeAnalysis",
+    "AnalysisStatus",
 ]

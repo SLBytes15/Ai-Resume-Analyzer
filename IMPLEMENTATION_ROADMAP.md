@@ -245,5 +245,10 @@ flowchart TD
 ├──────────────────────┼─────────────────────────────────────────────────┤
 │ 6. Audit Integrity   │ • Forged user_id or org_id in audit fails.      │
 │                      │ • UPDATE and DELETE revoked on audit_logs.      │
+├──────────────────────┼─────────────────────────────────────────────────┤
+│ 7. Career Guidance   │ • Private candidate-owned resume intelligence.  │
+│    (Milestone 7)     │ • Hybrid deterministic checks + Ollama LLM.     │
+│                      │ • Strictly isolated from M6 screening scores.   │
+│                      │ • Complete candidate privacy & prompt safety.   │
 └──────────────────────┴─────────────────────────────────────────────────┘
 ```

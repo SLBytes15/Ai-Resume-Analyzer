@@ -250,3 +250,39 @@ Instead, the Recruiter RAG copilot executes a multi-stage authorization pipeline
 4. **Vector Retrieval Filter**: ChromaDB query injects mandatory filter:
    `{"resume_id": {"$in": authorized_resume_ids}}`
 5. **Post-Retrieval Verification**: Backend confirms that all retrieved text chunks map to the authorized whitelist before passing chunks to the LLM context window.
+
+---
+
+## 8. Milestone 7: Candidate Resume Intelligence & Career Guidance Architecture
+
+### 8.1 Distinct Boundaries: M6 vs. M7
+
+TalentLens maintains strict separation between recruiter-facing candidate screening (M6) and candidate-facing career guidance (M7):
+
+| Aspect | Milestone 6 (Screening Engine) | Milestone 7 (Resume Intelligence & Guidance) |
+|---|---|---|
+| **Audience** | Recruiter / Hiring Team | Candidate (Private) |
+| **Ownership** | Organization Requisition | Candidate Account |
+| **Objective** | Score & rank applicants against job criteria | Provide constructive career feedback & resume advice |
+| **Scoring** | Deterministic 0–100 score + component breakdown | Strictly **no numerical scores** or pass/fail grades |
+| **Access Control** | Recruiter org-membership authorized | Strictly candidate-only; recruiters cannot access |
+| **Impact on Ranking**| Directly determines candidate screening leaderboard | **Zero influence** on M6 scores, weights, or rankings |
+| **Resume Versioning**| Pinned immutable submitted resume snapshot | Evaluates any selected candidate resume version |
+
+### 8.2 Hybrid Analysis Pipeline
+
+M7 employs a dual-stage hybrid evaluation:
+1. **Deterministic Quality Checks (Rule-Based, Non-LLM)**:
+   - Word count, character count, and brevity heuristics.
+   - Standard section presence detection (Summary, Skills, Experience, Projects, Education, Certifications).
+   - Direct contact info verification (Email, Phone, GitHub, LinkedIn).
+   - Missing project descriptions and incomplete employment/education dates.
+   - Content duplication and repetition heuristics.
+   - Quantitative metric extraction (percentages, throughput, scale indicators).
+   - Strict notice: Static text evaluation only; no claims regarding physical visual layout or formatting.
+2. **LLM Qualitative Career Guidance (Ollama `qwen3:4b` / `llama3.2:1b`)**:
+   - Structured qualitative analysis evaluating technical depth in projects and work history.
+   - Identification of contextually demonstrated skills vs. isolated keywords.
+   - Actionable, prioritized improvement checklist.
+   - Optional Target Role alignment without declaring candidate qualified/unqualified.
+   - Pure Python deterministic advisory fallback if LLM inference is unavailable or fails.

@@ -256,3 +256,51 @@ Filenames are stripped of path traversals (`../`), control characters, and non-A
   }
 }
 ```
+
+---
+
+## 7. Milestone 7: Candidate Resume Intelligence & Career Guidance API
+
+### 7.1 Request Resume Analysis
+- **Route**: `POST /api/v1/resumes/{resume_id}/analyze`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Request Body**:
+  ```json
+  {
+    "target_role": "Backend Developer"
+  }
+  ```
+- **Responses**:
+  - `201 Created`: Complete analysis report.
+  - `404 Not Found`: Resume does not exist or belongs to another candidate.
+  - `409 Conflict`: Duplicate analysis for this resume and target role already in progress.
+  - `422 Unprocessable Content`: Resume has insufficient extracted text.
+
+### 7.2 List Historical Analyses for Resume
+- **Route**: `GET /api/v1/resumes/{resume_id}/analyses`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Response `200 OK`**:
+  ```json
+  [
+    {
+      "id": "f512db34-9ead-4780-a2c3-799ac17ca15b",
+      "resume_id": "893c5be3-3b68-45e0-94cb-0bfdb9486c47",
+      "target_role": "Backend Developer",
+      "status": "COMPLETED",
+      "overall_summary": "Strong backend candidate with practical API engineering experience...",
+      "created_at": "2026-11-23T10:00:00Z"
+    }
+  ]
+  ```
+
+### 7.3 Get Analysis Detail
+- **Route**: `GET /api/v1/analyses/{analysis_id}`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Response `200 OK`**: Complete `ResumeAnalysisResponse` including `deterministic_checks` and `analysis_data`.
+
+### 7.4 Retry Failed Analysis
+- **Route**: `POST /api/v1/analyses/{analysis_id}/retry`
+- **Auth**: Candidate JWT (`Bearer <token>`)
+- **Responses**:
+  - `200 OK`: Re-executed analysis.
+  - `400 Bad Request`: If analysis status is not `FAILED`.

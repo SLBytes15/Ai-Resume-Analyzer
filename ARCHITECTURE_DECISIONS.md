@@ -177,3 +177,25 @@ V3 included Redis in Phase 1 before any background queues existed, made unverifi
 ### 4. How It Will Be Tested
 - **Test 6.1 (Local Model Inference)**: Script executes a prompt against host Ollama `qwen3:4b` and asserts response completes in $< 3$ seconds on Apple M2 hardware.
 - **Test 6.2 (Phase 1 Boot Time)**: Assert `docker-compose -f docker-compose.dev.yml up` completes in $< 10$ seconds without Redis.
+
+---
+
+## ADR-007: Candidate Resume Intelligence & Career Guidance Architecture (Milestone 7)
+
+### Context
+Candidates need actionable feedback on how their resumes communicate technical competencies and how they can tailor their resumes toward specific roles. However, this feature must not conflict with recruitment screening, create recruiter bias, or alter evaluation scores.
+
+### Decision
+1. **Complete Decoupling from M6 Screening Engine**:
+   - M7 Career Guidance is strictly private to the candidate.
+   - It **never** alters M6 screening scores, matching algorithms, or recruiter leaderboard ranks.
+   - Recruiters have zero access to candidate-generated analyses.
+2. **Hybrid Architecture**:
+   - Pure Python deterministic static checks evaluate text length, standard section presence, direct contact details, missing descriptions, and quantitative metrics without LLM cost or hallucination risk.
+   - Local Ollama LLM (`qwen3:4b` primary, `llama3.2:1b` fallback) provides qualitative technical evaluation, contextual skill identification, and actionable suggestions.
+3. **Deterministic Fallback Resilience**:
+   - If Ollama is unavailable, times out, or returns invalid structure, the system generates a pure Python rule-based advisory payload, stores status as `FAILED`, and allows controlled candidate retries.
+4. **Safety and Prompt Injection Defense**:
+   - Resume content is strictly fenced as untrusted input.
+   - No protected attributes, age, gender, or pedigree biases are evaluated.
+   - No numerical scores or grades are assigned.

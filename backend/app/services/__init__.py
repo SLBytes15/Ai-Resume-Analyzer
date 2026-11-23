@@ -53,6 +53,20 @@ from app.services.candidate_insight_generator import (
     CandidateInsightGenerator,
     candidate_insight_generator,
 )
+from app.services.career_guidance_service import (
+    CareerGuidanceService,
+    career_guidance_service,
+)
+from app.services.deterministic_resume_checker import (
+    DeterministicResumeChecker,
+    deterministic_checker,
+)
+from app.services.resume_analysis_service import (
+    create_resume_analysis,
+    get_resume_analysis_by_id,
+    list_resume_analyses,
+    retry_resume_analysis,
+)
 from app.services.scoring_engine import ScoringEngine, scoring_engine
 from app.services.screening_service import (
     get_screening_result_detail,
@@ -105,4 +119,12 @@ __all__ = [
     "archive_job",
     "list_organization_jobs",
     "list_public_jobs",
+    "career_guidance_service",
+    "CareerGuidanceService",
+    "deterministic_checker",
+    "DeterministicResumeChecker",
+    "create_resume_analysis",
+    "list_resume_analyses",
+    "get_resume_analysis_by_id",
+    "retry_resume_analysis",
 ]

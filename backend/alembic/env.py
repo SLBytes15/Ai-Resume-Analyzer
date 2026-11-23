@@ -23,6 +23,7 @@ from app.models import (
     Organization,
     OrganizationMembership,
     Resume,
+    ResumeAnalysis,
     ScreeningResult,
     ScreeningRun,
     User,

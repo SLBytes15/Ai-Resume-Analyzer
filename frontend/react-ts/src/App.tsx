@@ -293,6 +293,122 @@ interface ScreeningResultDetail extends ScreeningResultItem {
   insight?: ScreeningInsight | null;
 }
 
+// Milestone 7: Candidate Resume Intelligence & Career Guidance Interfaces
+interface DeterministicFindingItem {
+  category: string;
+  level: string;
+  message: string;
+}
+
+interface DeterministicChecksData {
+  word_count: number;
+  char_count: number;
+  sections_detected: string[];
+  missing_sections: string[];
+  empty_or_short_sections: string[];
+  contact_info: {
+    has_email: boolean;
+    has_phone: boolean;
+    has_linkedin: boolean;
+    has_github: boolean;
+  };
+  dates_assessment: {
+    roles_missing_dates?: string[];
+    education_missing_dates?: string[];
+  };
+  duplicated_content: {
+    has_duplicates: boolean;
+    duplicate_snippets?: string[];
+  };
+  projects_assessment: {
+    total_projects_count: number;
+    projects_missing_descriptions?: string[];
+  };
+  measurable_outcomes: {
+    has_metrics: boolean;
+    metrics_count: number;
+    sample_metrics?: string[];
+  };
+  findings: DeterministicFindingItem[];
+  layout_notice?: string;
+}
+
+interface StrengthItem {
+  title: string;
+  description: string;
+  supporting_evidence: string[];
+}
+
+interface SkillsAnalysisData {
+  demonstrated_skills: string[];
+  skills_with_limited_evidence: string[];
+}
+
+interface ProjectAnalysisItem {
+  project_name: string;
+  what_is_demonstrated: string;
+  what_is_missing: string;
+  suggested_improvement: string;
+}
+
+interface ExperienceAnalysisItem {
+  role_or_experience: string;
+  demonstrated_contributions: string;
+  improvement_suggestions: string;
+}
+
+interface ImprovementPriorityItem {
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  issue: string;
+  why_it_matters: string;
+  suggested_action: string;
+}
+
+interface TargetRoleAlignmentData {
+  target_role?: string | null;
+  alignment_summary: string;
+  relevant_strengths: string[];
+  missing_relevant_evidence: string[];
+}
+
+interface LLMAnalysisData {
+  overall_summary: string;
+  strengths: StrengthItem[];
+  skills_analysis: SkillsAnalysisData;
+  project_analysis: ProjectAnalysisItem[];
+  experience_analysis: ExperienceAnalysisItem[];
+  missing_information: string[];
+  improvement_priorities: ImprovementPriorityItem[];
+  target_role_alignment?: TargetRoleAlignmentData | null;
+  limitations_and_uncertainties: string[];
+}
+
+interface ResumeAnalysis {
+  id: string;
+  candidate_id: string;
+  resume_id: string;
+  resume_sha256: string;
+  target_role?: string | null;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  deterministic_checks?: DeterministicChecksData | null;
+  analysis_data?: LLMAnalysisData | null;
+  error_message?: string | null;
+  model_name?: string | null;
+  prompt_version: string;
+  schema_version: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ResumeAnalysisListItem {
+  id: string;
+  resume_id: string;
+  target_role?: string | null;
+  status: string;
+  overall_summary?: string | null;
+  created_at: string;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'public-jobs' | 'candidate' | 'recruiter'>('public-jobs');
 
@@ -352,13 +468,23 @@ export default function App() {
   const [recruiterJobKeywordFilter, setRecruiterJobKeywordFilter] = useState('');
   const [recruiterActionMessage, setRecruiterActionMessage] = useState('');
 
-  // Candidate Applications State
-  const [candidateSubTab, setCandidateSubTab] = useState<'profile-resumes' | 'my-applications'>('profile-resumes');
+  // Candidate Sub-Tabs: 'profile-resumes' | 'career-guidance' | 'my-applications'
+  const [candidateSubTab, setCandidateSubTab] = useState<'profile-resumes' | 'career-guidance' | 'my-applications'>('profile-resumes');
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const [myApplicationsLoading, setMyApplicationsLoading] = useState(false);
   const [myAppStatusFilter, setMyAppStatusFilter] = useState('');
   const [myAppKeyword, setMyAppKeyword] = useState('');
   const [selectedCandidateApp, setSelectedCandidateApp] = useState<CandidateApplication | null>(null);
+
+  // M7: Candidate Resume Intelligence & Career Guidance State
+  const [selectedAnalysisResumeId, setSelectedAnalysisResumeId] = useState<string>('');
+  const [targetRoleInput, setTargetRoleInput] = useState<string>('');
+  const [analysesList, setAnalysesList] = useState<ResumeAnalysisListItem[]>([]);
+  const [analysesLoading, setAnalysesLoading] = useState<boolean>(false);
+  const [currentAnalysis, setCurrentAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [analysisInProgress, setAnalysisInProgress] = useState<boolean>(false);
+  const [analysisError, setAnalysisError] = useState<string>('');
+  const [retryingAnalysisId, setRetryingAnalysisId] = useState<string | null>(null);
 
   // Apply to Job Modal State
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -1320,6 +1446,93 @@ export default function App() {
     }
   };
 
+  // Milestone 7: Career Guidance Handlers
+  const fetchResumeAnalyses = async (resumeId: string) => {
+    if (!token || !resumeId) return;
+    setAnalysesLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/resumes/${resumeId}/analyses`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAnalysesList(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch resume analyses', err);
+    } finally {
+      setAnalysesLoading(false);
+    }
+  };
+
+  const fetchAnalysisDetail = async (analysisId: string) => {
+    if (!token || !analysisId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/analyses/${analysisId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentAnalysis(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analysis details', err);
+    }
+  };
+
+  const handleStartAnalysis = async () => {
+    if (!token || !selectedAnalysisResumeId) return;
+    setAnalysisInProgress(true);
+    setAnalysisError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/resumes/${selectedAnalysisResumeId}/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          target_role: targetRoleInput.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAnalysisError(data.detail || 'Analysis request failed');
+      } else {
+        setCurrentAnalysis(data);
+        fetchResumeAnalyses(selectedAnalysisResumeId);
+      }
+    } catch (err: any) {
+      setAnalysisError(err.message || 'Network error initiating analysis');
+    } finally {
+      setAnalysisInProgress(false);
+    }
+  };
+
+  const handleRetryAnalysis = async (analysisId: string) => {
+    if (!token || !analysisId) return;
+    setRetryingAnalysisId(analysisId);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/analyses/${analysisId}/retry`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCurrentAnalysis(data);
+        if (selectedAnalysisResumeId) {
+          fetchResumeAnalyses(selectedAnalysisResumeId);
+        }
+      } else {
+        alert(data.detail || 'Failed to retry analysis');
+      }
+    } catch (err) {
+      console.error('Failed to retry analysis', err);
+    } finally {
+      setRetryingAnalysisId(null);
+    }
+  };
+
   // Recruiter Match execution
   const handleMatch = async () => {
     if (!jdText.trim()) return;
@@ -1803,6 +2016,23 @@ export default function App() {
                       Profile & Resumes
                     </button>
                     <button
+                      onClick={() => {
+                        setCandidateSubTab('career-guidance');
+                        if (!selectedAnalysisResumeId && resumes.length > 0) {
+                          const activeRes = resumes.find((r) => r.is_active) || resumes[0];
+                          setSelectedAnalysisResumeId(activeRes.id);
+                          fetchResumeAnalyses(activeRes.id);
+                        }
+                      }}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        candidateSubTab === 'career-guidance'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      💡 Career Guidance
+                    </button>
+                    <button
                       onClick={() => setCandidateSubTab('my-applications')}
                       className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
                         candidateSubTab === 'my-applications'
@@ -2015,6 +2245,16 @@ export default function App() {
                                 Download
                               </button>
                               <button
+                                onClick={() => {
+                                  setSelectedAnalysisResumeId(res.id);
+                                  fetchResumeAnalyses(res.id);
+                                  setCandidateSubTab('career-guidance');
+                                }}
+                                className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg shadow-sm"
+                              >
+                                💡 Analyze Resume
+                              </button>
+                              <button
                                 onClick={() => handleDeleteResume(res.id, res.original_filename)}
                                 className="px-3 py-1.5 text-xs bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/50 rounded-lg"
                               >
@@ -2147,6 +2387,591 @@ export default function App() {
                   )}
                 </div>
               </div>
+                ) : candidateSubTab === 'career-guidance' ? (
+                  /* SUBTAB: CAREER GUIDANCE & RESUME INTELLIGENCE */
+                  <div className="flex flex-col gap-6">
+                    {/* Header Banner */}
+                    <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900/60 to-purple-950/40 border border-indigo-900/40 rounded-2xl p-6">
+                      <div className="flex flex-wrap justify-between items-start gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl">💡</span>
+                            <h2 className="text-lg font-bold text-slate-100">Resume Intelligence & Career Guidance</h2>
+                            <span className="text-[10px] bg-indigo-900/60 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded-full font-semibold">
+                              ADVISORY ONLY
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                            Get evidence-grounded insights on how recruiters perceive your resume, what technical strengths you demonstrate,
+                            and high-impact areas to improve. Purely advisory — never modifies your resume or affects M6 screening scores.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Setup & Configuration Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      {/* Left 2 Cols: Setup Request */}
+                      <div className="lg:col-span-2 bg-slate-950/40 border border-slate-800 rounded-2xl p-6 flex flex-col gap-4">
+                        <h3 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+                          <span>⚙️</span> Configure Analysis
+                        </h3>
+
+                        {/* Resume Selector */}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Select Resume Version to Analyze:
+                          </label>
+                          {resumes.length === 0 ? (
+                            <p className="text-xs text-amber-400 italic">No resumes uploaded yet. Upload a PDF in the 'Profile & Resumes' tab first.</p>
+                          ) : (
+                            <select
+                              value={selectedAnalysisResumeId}
+                              onChange={(e) => {
+                                setSelectedAnalysisResumeId(e.target.value);
+                                fetchResumeAnalyses(e.target.value);
+                              }}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                            >
+                              <option value="">-- Choose a Resume Version --</option>
+                              {resumes.map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.original_filename} ({new Date(r.created_at).toLocaleDateString()}) {r.is_active ? '★ ACTIVE' : ''} [{r.parsing_status}]
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
+                        {/* Target Role Input with quick chips */}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                            Target Role (Optional):
+                          </label>
+                          <input
+                            type="text"
+                            value={targetRoleInput}
+                            onChange={(e) => setTargetRoleInput(e.target.value)}
+                            placeholder="e.g. Backend Developer, Data Scientist, Full Stack Engineer..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                          />
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            <span className="text-[10px] text-slate-500 mr-1 self-center">Quick Suggestions:</span>
+                            {['Backend Developer', 'Frontend Developer', 'Full Stack Developer', 'Data Scientist', 'DevOps Engineer'].map((role) => (
+                              <button
+                                key={role}
+                                type="button"
+                                onClick={() => setTargetRoleInput(role)}
+                                className={`text-[10px] px-2 py-0.5 rounded-md border transition ${
+                                  targetRoleInput === role
+                                    ? 'bg-indigo-900 text-indigo-200 border-indigo-600 font-semibold'
+                                    : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+                                }`}
+                              >
+                                + {role}
+                              </button>
+                            ))}
+                            {targetRoleInput && (
+                              <button
+                                type="button"
+                                onClick={() => setTargetRoleInput('')}
+                                className="text-[10px] text-slate-400 hover:text-slate-200 underline ml-1"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Error Alert */}
+                        {analysisError && (
+                          <div className="p-3 bg-red-950/60 border border-red-800 rounded-lg text-xs text-red-300">
+                            {analysisError}
+                          </div>
+                        )}
+
+                        {/* Action Button */}
+                        <div className="pt-2">
+                          <button
+                            onClick={handleStartAnalysis}
+                            disabled={!selectedAnalysisResumeId || analysisInProgress}
+                            className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+                              !selectedAnalysisResumeId || analysisInProgress
+                                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                            }`}
+                          >
+                            {analysisInProgress ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Evaluating Resume & Running AI Guidance...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>🚀 Run Career Guidance Analysis</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right 1 Col: Analysis History */}
+                      <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 flex flex-col gap-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <h3 className="text-sm font-bold text-slate-200">
+                            Analysis History ({analysesList.length})
+                          </h3>
+                          {selectedAnalysisResumeId && (
+                            <button
+                              onClick={() => fetchResumeAnalyses(selectedAnalysisResumeId)}
+                              className="text-[10px] text-indigo-400 hover:underline"
+                            >
+                              Refresh
+                            </button>
+                          )}
+                        </div>
+
+                        {analysesLoading ? (
+                          <p className="text-xs text-slate-500 animate-pulse">Loading history...</p>
+                        ) : !selectedAnalysisResumeId ? (
+                          <p className="text-xs text-slate-500 italic">Select a resume version to see historical analyses.</p>
+                        ) : analysesList.length === 0 ? (
+                          <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs">
+                            No analyses yet for this version. Run your first analysis!
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
+                            {analysesList.map((a) => (
+                              <button
+                                key={a.id}
+                                onClick={() => fetchAnalysisDetail(a.id)}
+                                className={`text-left p-2.5 rounded-lg border transition flex flex-col gap-1 ${
+                                  currentAnalysis?.id === a.id
+                                    ? 'bg-indigo-950/50 border-indigo-600'
+                                    : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-semibold text-slate-300">
+                                    {a.target_role || 'General Review'}
+                                  </span>
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded font-bold uppercase text-[9px] ${
+                                      a.status === 'COMPLETED'
+                                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                        : a.status === 'PROCESSING'
+                                        ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                                        : 'bg-rose-950 text-rose-400 border border-rose-800'
+                                    }`}
+                                  >
+                                    {a.status}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-slate-500">
+                                  {new Date(a.created_at).toLocaleString()}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Report View */}
+                    {currentAnalysis && (
+                      <div className="flex flex-col gap-6">
+                        {/* Report Header Card */}
+                        <div className="bg-slate-950/60 border border-indigo-900/50 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+                          <div className="flex flex-wrap justify-between items-start gap-4 border-b border-slate-800 pb-4">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base font-bold text-slate-100">
+                                  Report for: {currentAnalysis.target_role ? `Role Target — ${currentAnalysis.target_role}` : 'General Technical Evaluation'}
+                                </h3>
+                                <span
+                                  className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                    currentAnalysis.status === 'COMPLETED'
+                                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                      : currentAnalysis.status === 'PROCESSING'
+                                      ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                                      : 'bg-rose-950 text-rose-400 border border-rose-800'
+                                  }`}
+                                >
+                                  {currentAnalysis.status}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400 mt-1">
+                                Generated on {new Date(currentAnalysis.created_at).toLocaleString()} • Model: {currentAnalysis.model_name || 'qwen3:4b'}
+                              </p>
+                            </div>
+
+                            {currentAnalysis.status === 'FAILED' && (
+                              <button
+                                onClick={() => handleRetryAnalysis(currentAnalysis.id)}
+                                disabled={retryingAnalysisId === currentAnalysis.id}
+                                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg transition flex items-center gap-2"
+                              >
+                                {retryingAnalysisId === currentAnalysis.id ? (
+                                  <>
+                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    <span>Retrying...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>🔄 Retry Analysis</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          {currentAnalysis.status === 'FAILED' && (
+                            <div className="p-3 bg-amber-950/40 border border-amber-800 rounded-xl text-xs text-amber-300">
+                              <p className="font-semibold mb-0.5">Notice: AI inference encountered an issue.</p>
+                              <p>{currentAnalysis.error_message || 'A deterministic advisory fallback report has been supplied below.'}</p>
+                            </div>
+                          )}
+
+                          {/* Advisory Overall Summary */}
+                          {currentAnalysis.analysis_data?.overall_summary && (
+                            <div className="bg-indigo-950/20 border border-indigo-900/40 rounded-xl p-4">
+                              <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                <span>📋</span> Overall Advisory Summary
+                              </h4>
+                              <p className="text-xs text-slate-300 leading-relaxed">
+                                {currentAnalysis.analysis_data.overall_summary}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Target Role Alignment (if provided) */}
+                          {currentAnalysis.analysis_data?.target_role_alignment && (
+                            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+                              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <span>🎯</span> Target Role Alignment: {currentAnalysis.analysis_data.target_role_alignment.target_role || currentAnalysis.target_role}
+                              </h4>
+                              <p className="text-xs text-slate-300 mb-3 leading-relaxed">
+                                {currentAnalysis.analysis_data.target_role_alignment.alignment_summary}
+                              </p>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {currentAnalysis.analysis_data.target_role_alignment.relevant_strengths.length > 0 && (
+                                  <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-lg p-3">
+                                    <span className="text-[11px] font-bold text-emerald-400 block mb-1">Evidenced Strengths for Role:</span>
+                                    <ul className="text-xs text-slate-300 space-y-1">
+                                      {currentAnalysis.analysis_data.target_role_alignment.relevant_strengths.map((str, idx) => (
+                                        <li key={idx} className="flex items-start gap-1.5">
+                                          <span className="text-emerald-400">✓</span>
+                                          <span>{str}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {currentAnalysis.analysis_data.target_role_alignment.missing_relevant_evidence.length > 0 && (
+                                  <div className="bg-amber-950/20 border border-amber-900/30 rounded-lg p-3">
+                                    <span className="text-[11px] font-bold text-amber-400 block mb-1">Common Role Skills Not Evident:</span>
+                                    <ul className="text-xs text-slate-300 space-y-1">
+                                      {currentAnalysis.analysis_data.target_role_alignment.missing_relevant_evidence.map((gap, idx) => (
+                                        <li key={idx} className="flex items-start gap-1.5">
+                                          <span className="text-amber-400">!</span>
+                                          <span>{gap}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* PART 1: DETERMINISTIC CHECKS (RULE-BASED, NON-LLM) */}
+                        {currentAnalysis.deterministic_checks && (
+                          <div className="bg-slate-950/60 border border-teal-900/40 rounded-2xl p-6 shadow-xl flex flex-col gap-5">
+                            <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
+                              <div>
+                                <h3 className="text-sm font-bold text-teal-300 flex items-center gap-2">
+                                  <span>⚙️</span> Deterministic Text Quality Checks (Rule-Based, Non-LLM)
+                                </h3>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Algorithmic text analysis verifying structure, presence of metrics, and completeness.
+                                </p>
+                              </div>
+                              <span className="text-[10px] bg-teal-950 text-teal-300 border border-teal-800 px-2 py-0.5 rounded font-mono font-semibold">
+                                STATIC VERIFICATION
+                              </span>
+                            </div>
+
+                            {/* Stat Badges */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <div className="bg-slate-900/70 border border-slate-800 p-3 rounded-xl">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Word Count</span>
+                                <span className="text-lg font-bold text-slate-200">{currentAnalysis.deterministic_checks.word_count}</span>
+                                <span className="text-[10px] text-slate-500 block">words detected</span>
+                              </div>
+                              <div className="bg-slate-900/70 border border-slate-800 p-3 rounded-xl">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Measurable Metrics</span>
+                                <span className={`text-lg font-bold ${currentAnalysis.deterministic_checks.measurable_outcomes?.has_metrics ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                  {currentAnalysis.deterministic_checks.measurable_outcomes?.metrics_count || 0}
+                                </span>
+                                <span className="text-[10px] text-slate-500 block">quantitative points</span>
+                              </div>
+                              <div className="bg-slate-900/70 border border-slate-800 p-3 rounded-xl">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Detected Sections</span>
+                                <span className="text-lg font-bold text-indigo-300">
+                                  {currentAnalysis.deterministic_checks.sections_detected?.length || 0}
+                                </span>
+                                <span className="text-[10px] text-slate-500 block">standard sections</span>
+                              </div>
+                              <div className="bg-slate-900/70 border border-slate-800 p-3 rounded-xl">
+                                <span className="text-[10px] text-slate-400 uppercase font-semibold block">Contact Presence</span>
+                                <div className="flex gap-2 mt-1">
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${currentAnalysis.deterministic_checks.contact_info?.has_email ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400'}`}>
+                                    Email: {currentAnalysis.deterministic_checks.contact_info?.has_email ? '✓' : '✗'}
+                                  </span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${currentAnalysis.deterministic_checks.contact_info?.has_phone ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                                    Phone: {currentAnalysis.deterministic_checks.contact_info?.has_phone ? '✓' : '✗'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Section breakdown pills */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-slate-400 font-semibold">Standard Sections:</span>
+                              {currentAnalysis.deterministic_checks.sections_detected?.map((s) => (
+                                <span key={s} className="px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-300 border border-emerald-800/40 text-[11px] font-medium">
+                                  ✓ {s}
+                                </span>
+                              ))}
+                              {currentAnalysis.deterministic_checks.missing_sections?.map((s) => (
+                                <span key={s} className="px-2 py-0.5 rounded bg-amber-950/40 text-amber-300 border border-amber-800/40 text-[11px] font-medium">
+                                  ⚠ Missing: {s}
+                                </span>
+                              ))}
+                            </div>
+
+                            {/* Findings List */}
+                            {currentAnalysis.deterministic_checks.findings?.length > 0 && (
+                              <div className="flex flex-col gap-2">
+                                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Quality Findings & Actionable Advice:</span>
+                                {currentAnalysis.deterministic_checks.findings.map((f, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`p-3 rounded-xl border text-xs flex items-start gap-3 ${
+                                      f.level === 'WARNING'
+                                        ? 'bg-rose-950/30 border-rose-900/50 text-rose-200'
+                                        : f.level === 'ADVISORY'
+                                        ? 'bg-amber-950/30 border-amber-900/50 text-amber-200'
+                                        : 'bg-teal-950/30 border-teal-900/50 text-teal-200'
+                                    }`}
+                                  >
+                                    <span className="font-bold font-mono uppercase text-[10px] px-1.5 py-0.5 rounded bg-slate-900/80">
+                                      {f.level}
+                                    </span>
+                                    <span className="flex-1 leading-relaxed">{f.message}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Layout Notice */}
+                            <div className="text-[11px] text-slate-500 italic border-t border-slate-900 pt-3">
+                              {currentAnalysis.deterministic_checks.layout_notice ||
+                                'Deterministic checks inspect extracted text and data only. Visual styling, margins, fonts, and page layouts cannot be evaluated from plain text.'}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* PART 2: AI QUALITATIVE CAREER GUIDANCE */}
+                        {currentAnalysis.analysis_data && (
+                          <div className="flex flex-col gap-6">
+                            {/* Key Strengths & Skills */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                              {/* Key Strengths */}
+                              <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+                                <h4 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>💪</span> Key Demonstrated Strengths
+                                </h4>
+                                {currentAnalysis.analysis_data.strengths.length === 0 ? (
+                                  <p className="text-xs text-slate-500 italic">No specific strengths isolated.</p>
+                                ) : (
+                                  <div className="flex flex-col gap-3">
+                                    {currentAnalysis.analysis_data.strengths.map((str, idx) => (
+                                      <div key={idx} className="bg-slate-900/70 border border-slate-800 rounded-xl p-3">
+                                        <h5 className="font-semibold text-xs text-slate-200 mb-1">{str.title}</h5>
+                                        <p className="text-xs text-slate-400 mb-2 leading-relaxed">{str.description}</p>
+                                        {str.supporting_evidence?.length > 0 && (
+                                          <div className="flex flex-wrap gap-1">
+                                            {str.supporting_evidence.map((ev, eIdx) => (
+                                              <span key={eIdx} className="text-[10px] bg-indigo-950/50 text-indigo-300 border border-indigo-800/40 px-2 py-0.5 rounded font-mono">
+                                                "{ev}"
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Skills Breakdown */}
+                              <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                                <h4 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>⚡</span> Contextual Skills Analysis
+                                </h4>
+                                <div>
+                                  <span className="text-[11px] font-bold text-emerald-400 block mb-1.5">
+                                    Evidenced & Demonstrated in Context:
+                                  </span>
+                                  {currentAnalysis.analysis_data.skills_analysis.demonstrated_skills.length === 0 ? (
+                                    <p className="text-xs text-slate-500 italic">No skills contextually evidenced in projects.</p>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {currentAnalysis.analysis_data.skills_analysis.demonstrated_skills.map((s) => (
+                                        <span key={s} className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-xs font-semibold">
+                                          {s}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="border-t border-slate-900 pt-3">
+                                  <span className="text-[11px] font-bold text-amber-400 block mb-1.5">
+                                    Isolated Keywords (Limited Evidentiary Context):
+                                  </span>
+                                  {currentAnalysis.analysis_data.skills_analysis.skills_with_limited_evidence.length === 0 ? (
+                                    <p className="text-xs text-slate-500 italic">None. All listed skills have contextual mentions.</p>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {currentAnalysis.analysis_data.skills_analysis.skills_with_limited_evidence.map((s) => (
+                                        <span key={s} className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 text-xs">
+                                          {s}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Project Analysis */}
+                            {currentAnalysis.analysis_data.project_analysis.length > 0 && (
+                              <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+                                <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>🚀</span> Project Technical Evaluation
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {currentAnalysis.analysis_data.project_analysis.map((p, idx) => (
+                                    <div key={idx} className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between gap-3">
+                                      <div>
+                                        <h5 className="font-bold text-sm text-indigo-300">{p.project_name}</h5>
+                                        <div className="mt-2 text-xs space-y-2">
+                                          <div>
+                                            <span className="font-semibold text-slate-300">What is Demonstrated: </span>
+                                            <span className="text-slate-400">{p.what_is_demonstrated}</span>
+                                          </div>
+                                          <div>
+                                            <span className="font-semibold text-amber-400">What is Missing: </span>
+                                            <span className="text-slate-400">{p.what_is_missing}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 text-xs">
+                                        <span className="text-teal-400 font-semibold block mb-0.5">Actionable Suggestion:</span>
+                                        <span className="text-slate-300">{p.suggested_improvement}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Experience Analysis */}
+                            {currentAnalysis.analysis_data.experience_analysis.length > 0 && (
+                              <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+                                <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>💼</span> Experience & Role Impact Analysis
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {currentAnalysis.analysis_data.experience_analysis.map((exp, idx) => (
+                                    <div key={idx} className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between gap-3">
+                                      <div>
+                                        <h5 className="font-bold text-sm text-slate-200">{exp.role_or_experience}</h5>
+                                        <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                          <strong className="text-slate-300">Demonstrated Contributions: </strong>
+                                          {exp.demonstrated_contributions}
+                                        </p>
+                                      </div>
+                                      <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 text-xs">
+                                        <span className="text-indigo-400 font-semibold block mb-0.5">Communication Improvement:</span>
+                                        <span className="text-slate-300">{exp.improvement_suggestions}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Prioritized Improvement Checklist */}
+                            {currentAnalysis.analysis_data.improvement_priorities.length > 0 && (
+                              <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+                                <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>🎯</span> Prioritized Action Items
+                                </h4>
+                                <div className="flex flex-col gap-3">
+                                  {currentAnalysis.analysis_data.improvement_priorities.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                    >
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span
+                                            className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${
+                                              item.priority === 'HIGH'
+                                                ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                                : item.priority === 'MEDIUM'
+                                                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                                : 'bg-blue-950 text-blue-300 border border-blue-800'
+                                            }`}
+                                          >
+                                            {item.priority} PRIORITY
+                                          </span>
+                                          <span className="font-bold text-sm text-slate-200">{item.issue}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-400 leading-relaxed">
+                                          <strong className="text-slate-300">Why it matters: </strong>
+                                          {item.why_it_matters}
+                                        </p>
+                                      </div>
+                                      <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 md:max-w-md text-xs">
+                                        <span className="text-teal-400 font-semibold block mb-0.5">Suggested Action:</span>
+                                        <span className="text-slate-300">{item.suggested_action}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Limitations & Uncertainties Banner */}
+                            {currentAnalysis.analysis_data.limitations_and_uncertainties?.length > 0 && (
+                              <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 text-xs text-slate-500 space-y-1">
+                                <span className="font-bold uppercase text-[10px] text-slate-400 block mb-1">
+                                  Advisory Limitations & Uncertainties:
+                                </span>
+                                {currentAnalysis.analysis_data.limitations_and_uncertainties.map((lim, idx) => (
+                                  <p key={idx}>• {lim}</p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   /* SUBTAB: MY APPLICATIONS */
                   <div className="flex flex-col gap-6">

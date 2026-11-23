@@ -71,6 +71,12 @@ class CandidateProfile(Base):
         "Application",
         back_populates="candidate",
     )
+    analyses = relationship(
+        "ResumeAnalysis",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+        order_by="desc(ResumeAnalysis.created_at)",
+    )
 
     def __repr__(self) -> str:
         return f"<CandidateProfile id={self.id} user_id={self.user_id}>"
@@ -150,6 +156,12 @@ class Resume(Base):
 
     # Relationships
     candidate = relationship("CandidateProfile", back_populates="resumes")
+    analyses = relationship(
+        "ResumeAnalysis",
+        back_populates="resume",
+        cascade="all, delete-orphan",
+        order_by="desc(ResumeAnalysis.created_at)",
+    )
 
     __table_args__ = (
         Index("idx_resumes_candidate_created", "candidate_id", "created_at"),

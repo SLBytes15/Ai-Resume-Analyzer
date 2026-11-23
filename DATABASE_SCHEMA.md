@@ -755,3 +755,39 @@ async def scoped_tenant_session(
     )
     yield session
 ```
+
+---
+
+## 9. Milestone 7: Candidate Resume Analyses Table
+
+```sql
+CREATE TYPE public.analysis_status AS ENUM (
+    'PENDING',
+    'PROCESSING',
+    'COMPLETED',
+    'FAILED'
+);
+
+CREATE TABLE public.resume_analyses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    candidate_id UUID NOT NULL REFERENCES public.candidate_profiles(id) ON DELETE CASCADE,
+    resume_id UUID NOT NULL REFERENCES public.resumes(id) ON DELETE CASCADE,
+    resume_sha256 VARCHAR(64) NOT NULL,
+    target_role VARCHAR(128) NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    deterministic_checks JSONB NULL,
+    analysis_data JSONB NULL,
+    error_message TEXT NULL,
+    model_name VARCHAR(64) NULL,
+    prompt_version VARCHAR(32) NOT NULL DEFAULT 'v1.0.0',
+    schema_version VARCHAR(32) NOT NULL DEFAULT 'v1.0.0',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+-- Performance & Retrieval Indexes
+CREATE INDEX idx_analyses_candidate_created ON public.resume_analyses(candidate_id, created_at DESC);
+CREATE INDEX idx_analyses_resume_created ON public.resume_analyses(resume_id, created_at DESC);
+CREATE INDEX idx_analyses_resume_status ON public.resume_analyses(resume_id, status);
+CREATE INDEX ix_resume_analyses_resume_sha256 ON public.resume_analyses(resume_sha256);
+```
