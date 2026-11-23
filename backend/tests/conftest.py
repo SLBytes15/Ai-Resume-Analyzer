@@ -1,6 +1,9 @@
 import asyncio
 import os
+import shutil
 import sys
+import tempfile
+from pathlib import Path
 from typing import AsyncGenerator
 import pytest
 import pytest_asyncio
@@ -19,7 +22,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.config import settings
 from app.core.database import get_db
 from app.main import app
-from app.models.base import Base
+from app.models import Base, CandidateProfile, Job, Organization, OrganizationMembership, Resume, User
+from app.services.storage_service import storage_service
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -37,12 +41,16 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         autoflush=False,
     )
 
-    # Ensure schema exists and clean up table
+    # Ensure schema exists and clean up tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session_maker() as session:
-        await session.execute(text("TRUNCATE TABLE users RESTART IDENTITY CASCADE;"))
+        await session.execute(
+            text(
+                "TRUNCATE TABLE jobs, resumes, candidate_profiles, organization_memberships, organizations, users RESTART IDENTITY CASCADE;"
+            )
+        )
         await session.commit()
         try:
             yield session
@@ -55,6 +63,11 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture(scope="function")
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Provide AsyncClient with get_db overridden to use the per-test database session."""
+    # Use isolated temp dir for file storage during test
+    temp_dir = tempfile.mkdtemp(prefix="talentlens_test_resumes_")
+    orig_base_dir = storage_service.base_dir
+    storage_service.base_dir = Path(temp_dir).resolve()
+
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
@@ -65,3 +78,5 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+    storage_service.base_dir = orig_base_dir
+    shutil.rmtree(temp_dir, ignore_errors=True)

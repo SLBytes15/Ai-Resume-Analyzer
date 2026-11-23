@@ -1,4 +1,70 @@
 from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.candidate import (
+    CandidateProfileCreate,
+    CandidateProfileResponse,
+    CandidateProfileUpdate,
+)
+from app.schemas.job import (
+    JobBase,
+    JobCreate,
+    JobResponse,
+    JobUpdate,
+    PaginatedJobResponse,
+    PaginatedPublicJobResponse,
+    PublicJobResponse,
+    normalize_skill_list,
+)
+from app.schemas.organization import (
+    MemberAddRequest,
+    MemberResponse,
+    MemberUpdateRequest,
+    OrganizationCreate,
+    OrganizationResponse,
+    OrganizationUpdate,
+    SwitchOrganizationRequest,
+    SwitchOrganizationResponse,
+    slugify,
+)
+from app.schemas.resume import (
+    EducationItem,
+    ExperienceItem,
+    ParsedResumeData,
+    ProjectItem,
+    ResumeListItemResponse,
+    ResumeResponse,
+)
 from app.schemas.user import UserBase, UserCreate, UserResponse
 
-__all__ = ["LoginRequest", "TokenResponse", "UserBase", "UserCreate", "UserResponse"]
+__all__ = [
+    "LoginRequest",
+    "TokenResponse",
+    "UserBase",
+    "UserCreate",
+    "UserResponse",
+    "OrganizationCreate",
+    "OrganizationUpdate",
+    "OrganizationResponse",
+    "MemberAddRequest",
+    "MemberUpdateRequest",
+    "MemberResponse",
+    "SwitchOrganizationRequest",
+    "SwitchOrganizationResponse",
+    "slugify",
+    "CandidateProfileCreate",
+    "CandidateProfileUpdate",
+    "CandidateProfileResponse",
+    "EducationItem",
+    "ExperienceItem",
+    "ProjectItem",
+    "ParsedResumeData",
+    "ResumeResponse",
+    "ResumeListItemResponse",
+    "JobBase",
+    "JobCreate",
+    "JobUpdate",
+    "JobResponse",
+    "PublicJobResponse",
+    "PaginatedJobResponse",
+    "PaginatedPublicJobResponse",
+    "normalize_skill_list",
+]

@@ -1,4 +1,6 @@
 import json
+import os
+from pathlib import Path
 from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,6 +35,18 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5174",
         "http://localhost:3000",
     ]
+
+    # File Storage (Milestone 3)
+    UPLOAD_DIR: str = str(
+        Path(__file__).resolve().parent.parent.parent / "data" / "resumes"
+    )
+    MAX_UPLOAD_SIZE_BYTES: int = 5 * 1024 * 1024  # 5 MB
+
+    # Local Ollama AI Settings (Milestone 3)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_PRIMARY_MODEL: str = "qwen3:4b"
+    OLLAMA_FALLBACK_MODEL: str = "llama3.2:1b"
+    OLLAMA_TIMEOUT_SECONDS: float = 60.0
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, utc_now
 
 
@@ -44,6 +44,19 @@ class User(Base):
         default=utc_now,
         onupdate=utc_now,
         nullable=False,
+    )
+
+    # Relationships
+    memberships = relationship(
+        "OrganizationMembership",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    candidate_profile = relationship(
+        "CandidateProfile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:

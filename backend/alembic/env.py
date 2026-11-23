@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.config import settings
 from app.models.base import Base
-# Import all models so metadata is populated
-from app.models.user import User
+# Import all models so metadata is populated for autogenerate
+from app.models import CandidateProfile, Job, Organization, OrganizationMembership, Resume, User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
