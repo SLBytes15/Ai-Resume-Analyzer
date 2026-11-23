@@ -129,6 +129,170 @@ interface Organization {
   role?: string;
 }
 
+interface CandidateApplication {
+  id: string;
+  job_id: string;
+  job_title: string;
+  organization_id: string;
+  organization_name: string;
+  submitted_resume_id: string;
+  resume_filename: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'REJECTED' | 'HIRED' | 'WITHDRAWN';
+  cover_letter?: string | null;
+  submitted_at: string;
+  status_updated_at: string;
+  withdrawn_at?: string | null;
+  job_location?: string | null;
+  workplace_type?: string | null;
+  employment_type?: string | null;
+}
+
+interface RecruiterApplication {
+  id: string;
+  job_id: string;
+  job_title: string;
+  organization_id: string;
+  candidate_id: string;
+  candidate_name?: string | null;
+  candidate_email?: string | null;
+  candidate_headline?: string | null;
+  submitted_resume_id: string;
+  resume_filename: string;
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'REJECTED' | 'HIRED' | 'WITHDRAWN';
+  submitted_at: string;
+  status_updated_at: string;
+  withdrawn_at?: string | null;
+  cover_letter?: string | null;
+}
+
+interface StatusHistoryItem {
+  id: string;
+  previous_status?: string | null;
+  new_status: string;
+  changed_by?: string | null;
+  changed_at: string;
+  internal_note?: string | null;
+}
+
+interface RecruiterApplicationDetail extends RecruiterApplication {
+  candidate_snapshot?: any;
+  status_history: StatusHistoryItem[];
+}
+
+interface ScreeningRun {
+  id: string;
+  organization_id: string;
+  job_id: string;
+  triggered_by?: string | null;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL' | 'FAILED';
+  total_applications: number;
+  processed_applications: number;
+  failed_applications: number;
+  scoring_config?: any;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  error_summary?: string | null;
+}
+
+interface KeyStrengthItem {
+  title: string;
+  description: string;
+  supporting_evidence: string[];
+  category: 'SKILL' | 'EXPERIENCE' | 'PROJECT' | 'EDUCATION' | 'CERTIFICATION';
+}
+
+interface RelevantProjectItem {
+  project_name: string;
+  description: string;
+  relevant_requirements: string[];
+  supporting_evidence: string[];
+}
+
+interface EvidenceGapItem {
+  requirement: string;
+  explanation: string;
+}
+
+interface CandidateInsightData {
+  summary: string;
+  key_strengths: KeyStrengthItem[];
+  relevant_projects: RelevantProjectItem[];
+  evidence_gaps: EvidenceGapItem[];
+  uncertainties: string[];
+  score_explanation: string;
+}
+
+interface ScreeningInsight {
+  id: string;
+  screening_result_id: string;
+  screening_run_id: string;
+  application_id: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  model_id: string;
+  prompt_version: string;
+  insight_data: CandidateInsightData;
+  error_message?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ScreeningResultItem {
+  id: string;
+  screening_run_id: string;
+  application_id: string;
+  candidate_id: string;
+  candidate_name?: string | null;
+  candidate_email?: string | null;
+  candidate_headline?: string | null;
+  submitted_resume_id: string;
+  resume_filename?: string | null;
+  total_score?: number | null;
+  required_skill_score?: number | null;
+  preferred_skill_score?: number | null;
+  experience_score?: number | null;
+  matched_skills_count: number;
+  missing_evidence_count: number;
+  confidence_level?: string | null;
+  processing_status: string;
+  insight_summary?: string | null;
+  insight_status?: string | null;
+  created_at: string;
+}
+
+interface ScreeningResultDetail extends ScreeningResultItem {
+  matched_skills: Array<{
+    skill: string;
+    canonical_skill?: string;
+    evidence: string;
+    evidence_type?: string;
+    confidence?: number;
+  }>;
+  missing_evidence: Array<{
+    skill: string;
+    canonical_skill?: string;
+    reason: string;
+  }>;
+  preferred_skill_matches: Array<{
+    skill: string;
+    canonical_skill?: string;
+    evidence: string;
+    confidence?: number;
+  }>;
+  experience_assessment: {
+    status?: string;
+    verified_years?: number | null;
+    required_min_years?: number;
+    project_count?: number;
+    roles?: string[];
+    note?: string;
+  };
+  explanation: string;
+  error_message?: string | null;
+  insight?: ScreeningInsight | null;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'public-jobs' | 'candidate' | 'recruiter'>('public-jobs');
 
@@ -179,7 +343,7 @@ export default function App() {
   const [publicSort, setPublicSort] = useState<'newest' | 'oldest'>('newest');
 
   // Recruiter Management State
-  const [recruiterSubTab, setRecruiterSubTab] = useState<'jobs' | 'matcher'>('jobs');
+  const [recruiterSubTab, setRecruiterSubTab] = useState<'jobs' | 'applications' | 'screening' | 'matcher'>('jobs');
   const [userOrgs, setUserOrgs] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   const [recruiterJobs, setRecruiterJobs] = useState<RecruiterJob[]>([]);
@@ -187,6 +351,55 @@ export default function App() {
   const [recruiterJobStatusFilter, setRecruiterJobStatusFilter] = useState('');
   const [recruiterJobKeywordFilter, setRecruiterJobKeywordFilter] = useState('');
   const [recruiterActionMessage, setRecruiterActionMessage] = useState('');
+
+  // Candidate Applications State
+  const [candidateSubTab, setCandidateSubTab] = useState<'profile-resumes' | 'my-applications'>('profile-resumes');
+  const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
+  const [myApplicationsLoading, setMyApplicationsLoading] = useState(false);
+  const [myAppStatusFilter, setMyAppStatusFilter] = useState('');
+  const [myAppKeyword, setMyAppKeyword] = useState('');
+  const [selectedCandidateApp, setSelectedCandidateApp] = useState<CandidateApplication | null>(null);
+
+  // Apply to Job Modal State
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [applyJob, setApplyJob] = useState<PublicJob | null>(null);
+  const [selectedResumeId, setSelectedResumeId] = useState('');
+  const [coverLetter, setCoverLetter] = useState('');
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyError, setApplyError] = useState('');
+  const [applySuccess, setApplySuccess] = useState('');
+
+  // Recruiter Applications State
+  const [recruiterApplications, setRecruiterApplications] = useState<RecruiterApplication[]>([]);
+  const [recruiterAppsLoading, setRecruiterAppsLoading] = useState(false);
+  const [recruiterAppJobFilter, setRecruiterAppJobFilter] = useState('');
+  const [recruiterAppStatusFilter, setRecruiterAppStatusFilter] = useState('');
+  const [recruiterAppKeyword, setRecruiterAppKeyword] = useState('');
+  const [selectedRecruiterAppDetail, setSelectedRecruiterAppDetail] = useState<RecruiterApplicationDetail | null>(null);
+  const [isRecruiterAppModalOpen, setIsRecruiterAppModalOpen] = useState(false);
+  const [statusUpdateVal, setStatusUpdateVal] = useState('');
+  const [statusUpdateNote, setStatusUpdateNote] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [statusUpdateError, setStatusUpdateError] = useState('');
+
+  // AI Screening State
+  const [screeningJobId, setScreeningJobId] = useState<string>('');
+  const [screeningRuns, setScreeningRuns] = useState<ScreeningRun[]>([]);
+  const [screeningRunsLoading, setScreeningRunsLoading] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [screeningResults, setScreeningResults] = useState<ScreeningResultItem[]>([]);
+  const [screeningResultsLoading, setScreeningResultsLoading] = useState(false);
+  const [screeningScoreFilter, setScreeningScoreFilter] = useState<string>('');
+  const [screeningKeyword, setScreeningKeyword] = useState<string>('');
+  const [selectedResultDetail, setSelectedResultDetail] = useState<ScreeningResultDetail | null>(null);
+  const [isResultDetailModalOpen, setIsResultDetailModalOpen] = useState(false);
+  const [resultDetailLoading, setResultDetailLoading] = useState(false);
+  const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
+  const [triggerJob, setTriggerJob] = useState<RecruiterJob | null>(null);
+  const [triggerLoading, setTriggerLoading] = useState(false);
+  const [triggerError, setTriggerError] = useState('');
+  const [expandedResultIds, setExpandedResultIds] = useState<Record<string, boolean>>({});
+  const [retryingInsight, setRetryingInsight] = useState(false);
 
   // Job Form Modal State (Create / Edit)
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
@@ -534,6 +747,390 @@ export default function App() {
     }
   };
 
+  // ==========================================
+  // Milestone 5: Application Operations
+  // ==========================================
+
+  const fetchMyApplications = async () => {
+    if (!token) return;
+    setMyApplicationsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (myAppStatusFilter) params.append('status', myAppStatusFilter);
+      if (myAppKeyword.trim()) params.append('keyword', myAppKeyword.trim());
+      const res = await fetch(`${API_BASE}/api/v1/applications/me?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyApplications(data.items || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch candidate applications', err);
+    } finally {
+      setMyApplicationsLoading(false);
+    }
+  };
+
+  const fetchRecruiterApplications = async () => {
+    if (!token || !selectedOrgId) return;
+    setRecruiterAppsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (recruiterAppJobFilter) params.append('job_id', recruiterAppJobFilter);
+      if (recruiterAppStatusFilter) params.append('status', recruiterAppStatusFilter);
+      if (recruiterAppKeyword.trim()) params.append('keyword', recruiterAppKeyword.trim());
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/applications?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setRecruiterApplications(data.items || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch recruiter applications', err);
+    } finally {
+      setRecruiterAppsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token && activeTab === 'candidate' && candidateSubTab === 'my-applications') {
+      fetchMyApplications();
+    }
+  }, [token, activeTab, candidateSubTab, myAppStatusFilter, myAppKeyword]);
+
+  useEffect(() => {
+    if (token && selectedOrgId && recruiterSubTab === 'applications') {
+      fetchRecruiterApplications();
+    }
+  }, [token, selectedOrgId, recruiterSubTab, recruiterAppJobFilter, recruiterAppStatusFilter, recruiterAppKeyword]);
+
+  // AI Screening Handlers
+  const fetchScreeningRuns = async (jobId: string) => {
+    if (!token || !selectedOrgId || !jobId) return;
+    setScreeningRunsLoading(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/jobs/${jobId}/screenings?limit=20`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const runs: ScreeningRun[] = data.items || [];
+        setScreeningRuns(runs);
+        if (runs.length > 0) {
+          // If current selected run is not in runs, pick the first one
+          if (!runs.some((r) => r.id === selectedRunId)) {
+            setSelectedRunId(runs[0].id);
+          }
+        } else {
+          setSelectedRunId('');
+          setScreeningResults([]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch screening runs', err);
+    } finally {
+      setScreeningRunsLoading(false);
+    }
+  };
+
+  const fetchScreeningResults = async (runId: string) => {
+    if (!token || !selectedOrgId || !runId) return;
+    setScreeningResultsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (screeningScoreFilter) params.append('score_min', screeningScoreFilter);
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/screenings/${runId}/results?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setScreeningResults(data.items || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch screening results', err);
+    } finally {
+      setScreeningResultsLoading(false);
+    }
+  };
+
+  const openResultDetailModal = async (resultId: string) => {
+    if (!token || !selectedOrgId) return;
+    setResultDetailLoading(true);
+    setIsResultDetailModalOpen(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/screenings/results/${resultId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedResultDetail(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch screening result detail', err);
+    } finally {
+      setResultDetailLoading(false);
+    }
+  };
+
+  const toggleExpandResult = (resultId: string) => {
+    setExpandedResultIds((prev) => ({
+      ...prev,
+      [resultId]: !prev[resultId],
+    }));
+  };
+
+  const handleRetryInsight = async (resultId: string) => {
+    if (!token || !selectedOrgId || !resultId) return;
+    setRetryingInsight(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/screenings/results/${resultId}/insight/retry`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (res.ok) {
+        const updatedInsight: ScreeningInsight = await res.json();
+        if (selectedResultDetail && selectedResultDetail.id === resultId) {
+          setSelectedResultDetail({
+            ...selectedResultDetail,
+            insight: updatedInsight,
+          });
+        }
+        if (selectedRunId) {
+          await fetchScreeningResults(selectedRunId);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to retry candidate insight', err);
+    } finally {
+      setRetryingInsight(false);
+    }
+  };
+
+  const openScreeningForJob = (job: RecruiterJob) => {
+    setScreeningJobId(job.id);
+    setRecruiterSubTab('screening');
+    fetchScreeningRuns(job.id);
+  };
+
+  const handleOpenTriggerModal = (job?: RecruiterJob) => {
+    const targetJob = job || recruiterJobs.find((j) => j.id === screeningJobId) || recruiterJobs[0] || null;
+    setTriggerJob(targetJob);
+    setTriggerError('');
+    setIsTriggerModalOpen(true);
+  };
+
+  const handleTriggerScreening = async () => {
+    if (!token || !selectedOrgId || !triggerJob) return;
+    setTriggerLoading(true);
+    setTriggerError('');
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/jobs/${triggerJob.id}/screenings`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({}),
+        }
+      );
+      if (res.ok || res.status === 201 || res.status === 202) {
+        const newRun = await res.json();
+        setRecruiterActionMessage(`Screening run triggered successfully for "${triggerJob.title}"!`);
+        setIsTriggerModalOpen(false);
+        setScreeningJobId(triggerJob.id);
+        setRecruiterSubTab('screening');
+        await fetchScreeningRuns(triggerJob.id);
+        setSelectedRunId(newRun.id);
+        await fetchScreeningResults(newRun.id);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setTriggerError(errData.detail || 'Failed to trigger candidate screening run');
+      }
+    } catch (err: any) {
+      setTriggerError(err.message || 'Network error triggering screening');
+    } finally {
+      setTriggerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token && selectedOrgId && recruiterSubTab === 'screening') {
+      if (!screeningJobId && recruiterJobs.length > 0) {
+        setScreeningJobId(recruiterJobs[0].id);
+        fetchScreeningRuns(recruiterJobs[0].id);
+      } else if (screeningJobId) {
+        fetchScreeningRuns(screeningJobId);
+      }
+    }
+  }, [token, selectedOrgId, recruiterSubTab, screeningJobId, recruiterJobs]);
+
+  useEffect(() => {
+    if (token && selectedOrgId && recruiterSubTab === 'screening' && selectedRunId) {
+      fetchScreeningResults(selectedRunId);
+    }
+  }, [token, selectedOrgId, recruiterSubTab, selectedRunId, screeningScoreFilter]);
+
+  const openApplyModal = (job: PublicJob) => {
+    if (!token) {
+      setActiveTab('candidate');
+      return;
+    }
+    setApplyJob(job);
+    const activeResume = resumes.find((r) => r.is_active);
+    setSelectedResumeId(activeResume ? activeResume.id : resumes[0]?.id || '');
+    setCoverLetter('');
+    setApplyError('');
+    setApplySuccess('');
+    setIsApplyModalOpen(true);
+  };
+
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !applyJob || !selectedResumeId) return;
+    setApplyLoading(true);
+    setApplyError('');
+    setApplySuccess('');
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/jobs/${applyJob.id}/applications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resume_id: selectedResumeId,
+          cover_letter: coverLetter.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to submit application');
+      }
+      setApplySuccess('Application successfully submitted! The exact resume version has been pinned.');
+      fetchMyApplications();
+      setTimeout(() => {
+        setIsApplyModalOpen(false);
+        setApplySuccess('');
+      }, 2500);
+    } catch (err: any) {
+      setApplyError(err.message || 'Error submitting application');
+    } finally {
+      setApplyLoading(false);
+    }
+  };
+
+  const handleWithdrawApplication = async (appId: string) => {
+    if (!confirm('Are you sure you want to withdraw this application? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/applications/${appId}/withdraw`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to withdraw application');
+      alert('Application withdrawn successfully.');
+      fetchMyApplications();
+      if (selectedCandidateApp?.id === appId) {
+        setSelectedCandidateApp(null);
+      }
+    } catch (err: any) {
+      alert(`Withdrawal error: ${err.message}`);
+    }
+  };
+
+  const handleDownloadSubmittedResume = async (appId: string, filename: string) => {
+    if (!token || !selectedOrgId) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/applications/${appId}/resume`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error('Failed to download resume file');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || 'submitted_resume.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Download error: ${err.message}`);
+    }
+  };
+
+  const openRecruiterAppDetail = async (app: RecruiterApplication) => {
+    if (!token || !selectedOrgId) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/applications/${app.id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedRecruiterAppDetail(data);
+        setStatusUpdateVal('');
+        setStatusUpdateNote('');
+        setStatusUpdateError('');
+        setIsRecruiterAppModalOpen(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch application detail', err);
+    }
+  };
+
+  const handleUpdateAppStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !selectedOrgId || !selectedRecruiterAppDetail || !statusUpdateVal) return;
+    setStatusUpdating(true);
+    setStatusUpdateError('');
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/v1/organizations/${selectedOrgId}/applications/${selectedRecruiterAppDetail.id}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: statusUpdateVal,
+            internal_note: statusUpdateNote.trim() || undefined,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to update application status');
+      setSelectedRecruiterAppDetail(data);
+      setStatusUpdateVal('');
+      setStatusUpdateNote('');
+      fetchRecruiterApplications();
+      setRecruiterActionMessage(`Application status updated to ${data.status}!`);
+      setTimeout(() => setRecruiterActionMessage(''), 4000);
+    } catch (err: any) {
+      setStatusUpdateError(err.message || 'Status update error');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
   // Candidate Profile operations
   const fetchProfile = async () => {
     if (!token) return;
@@ -657,7 +1254,7 @@ export default function App() {
   const handleSetActive = async (resumeId: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/api/v1/resumes/${resumeId}/set-active`, {
+      const res = await fetch(`${API_BASE}/api/v1/resumes/${resumeId}/active`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1072,12 +1669,24 @@ export default function App() {
 
                   <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-500">
                     <span>Published: {selectedPublicJob.published_at ? new Date(selectedPublicJob.published_at).toLocaleDateString() : 'Recent'}</span>
-                    <button
-                      onClick={() => setSelectedPublicJob(null)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-                    >
-                      Close
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedPublicJob(null)}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={() => {
+                          const job = selectedPublicJob;
+                          setSelectedPublicJob(null);
+                          openApplyModal(job);
+                        }}
+                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-md transition flex items-center gap-1.5"
+                      >
+                        <span>🚀</span> Apply Now
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1175,7 +1784,39 @@ export default function App() {
               </div>
             ) : (
               /* CANDIDATE PORTAL CONTENT */
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="flex flex-col gap-6">
+                {/* Candidate Subtabs */}
+                <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Candidate Portal:</span>
+                    <span className="text-sm font-bold text-slate-200">{profile?.full_name || profile?.email || 'Candidate'}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCandidateSubTab('profile-resumes')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        candidateSubTab === 'profile-resumes'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Profile & Resumes
+                    </button>
+                    <button
+                      onClick={() => setCandidateSubTab('my-applications')}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        candidateSubTab === 'my-applications'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      My Applications ({myApplications.length})
+                    </button>
+                  </div>
+                </div>
+
+                {candidateSubTab === 'profile-resumes' ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Profile Management */}
                 <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-6 h-fit">
                   <h2 className="text-lg font-bold text-slate-200 mb-1 flex items-center gap-2">
@@ -1506,6 +2147,125 @@ export default function App() {
                   )}
                 </div>
               </div>
+                ) : (
+                  /* SUBTAB: MY APPLICATIONS */
+                  <div className="flex flex-col gap-6">
+                    {/* Filters Bar */}
+                    <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-3 items-center flex-1">
+                        <div className="relative min-w-[220px]">
+                          <input
+                            type="text"
+                            value={myAppKeyword}
+                            onChange={(e) => setMyAppKeyword(e.target.value)}
+                            placeholder="Search by job title..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <select
+                          value={myAppStatusFilter}
+                          onChange={(e) => setMyAppStatusFilter(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="">All Statuses</option>
+                          <option value="SUBMITTED">Submitted</option>
+                          <option value="UNDER_REVIEW">Under Review</option>
+                          <option value="SHORTLISTED">Shortlisted</option>
+                          <option value="HIRED">Hired</option>
+                          <option value="REJECTED">Rejected</option>
+                          <option value="WITHDRAWN">Withdrawn</option>
+                        </select>
+                      </div>
+                      <div className="text-xs text-slate-400">
+                        Total Applications: <strong className="text-slate-200">{myApplications.length}</strong>
+                      </div>
+                    </div>
+
+                    {/* Applications List */}
+                    {myApplicationsLoading ? (
+                      <div className="text-center py-12 text-indigo-400 animate-pulse text-xs">
+                        Loading your applications...
+                      </div>
+                    ) : myApplications.length === 0 ? (
+                      <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+                        <p className="text-sm font-medium">No applications found.</p>
+                        <p className="text-xs text-slate-600 mt-1">Browse published jobs and apply using your active resume.</p>
+                        <button
+                          onClick={() => setActiveTab('public-jobs')}
+                          className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition"
+                        >
+                          Browse Available Jobs
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {myApplications.map((app) => (
+                          <div
+                            key={app.id}
+                            className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition flex flex-col justify-between gap-4"
+                          >
+                            <div className="flex flex-col gap-2">
+                              <div className="flex justify-between items-start gap-2">
+                                <div>
+                                  <h3 className="font-bold text-slate-100 text-base">{app.job_title}</h3>
+                                  <p className="text-xs text-indigo-400 font-medium">{app.organization_name}</p>
+                                </div>
+                                <span
+                                  className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                                    app.status === 'SUBMITTED'
+                                      ? 'bg-blue-950 text-blue-400 border border-blue-800'
+                                      : app.status === 'UNDER_REVIEW'
+                                      ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                                      : app.status === 'SHORTLISTED'
+                                      ? 'bg-purple-950 text-purple-400 border border-purple-800'
+                                      : app.status === 'HIRED'
+                                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                      : app.status === 'REJECTED'
+                                      ? 'bg-rose-950 text-rose-400 border border-rose-800'
+                                      : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                  }`}
+                                >
+                                  {app.status}
+                                </span>
+                              </div>
+
+                              <div className="text-xs text-slate-400 space-y-1">
+                                {app.job_location && <div>📍 Location: {app.job_location}</div>}
+                                {app.workplace_type && <div>💼 {app.workplace_type} · {app.employment_type?.replace('_', ' ')}</div>}
+                                <div className="p-2 bg-slate-900/80 rounded-lg border border-slate-800/80 text-[11px] text-slate-300">
+                                  📄 Pinned Resume: <strong className="text-indigo-300">{app.resume_filename}</strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-slate-800/80 pt-3 flex justify-between items-center text-xs">
+                              <span className="text-[11px] text-slate-500">
+                                Applied: {new Date(app.submitted_at).toLocaleDateString()}
+                              </span>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setSelectedCandidateApp(app)}
+                                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
+                                >
+                                  Details
+                                </button>
+                                {['SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED'].includes(app.status) && (
+                                  <button
+                                    onClick={() => handleWithdrawApplication(app.id)}
+                                    className="px-3 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded-lg transition"
+                                  >
+                                    Withdraw
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -1598,7 +2358,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* Subtabs: Jobs vs Matcher */}
+                  {/* Subtabs: Jobs vs Applications vs Matcher */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => setRecruiterSubTab('jobs')}
@@ -1609,6 +2369,26 @@ export default function App() {
                       }`}
                     >
                       Job Management
+                    </button>
+                    <button
+                      onClick={() => setRecruiterSubTab('applications')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                        recruiterSubTab === 'applications'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Applications ({recruiterApplications.length})
+                    </button>
+                    <button
+                      onClick={() => setRecruiterSubTab('screening')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                        recruiterSubTab === 'screening'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <span>⚡</span> AI Screening
                     </button>
                     <button
                       onClick={() => setRecruiterSubTab('matcher')}
@@ -1751,6 +2531,23 @@ export default function App() {
 
                             {/* Lifecycle Action Buttons */}
                             <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setRecruiterAppJobFilter(job.id);
+                                  setRecruiterSubTab('applications');
+                                }}
+                                className="px-3 py-1.5 text-xs bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 rounded-lg border border-indigo-800 transition"
+                              >
+                                Applicants
+                              </button>
+
+                              <button
+                                onClick={() => openScreeningForJob(job)}
+                                className="px-3 py-1.5 text-xs bg-purple-950/80 hover:bg-purple-900 text-purple-300 rounded-lg border border-purple-800 transition flex items-center gap-1"
+                              >
+                                <span>⚡</span> Screen
+                              </button>
+
                               {isRecruiterOrAbove && job.status !== 'ARCHIVED' && (
                                 <button
                                   onClick={() => openEditJobModal(job)}
@@ -1806,7 +2603,465 @@ export default function App() {
                   </div>
                 )}
 
-                {/* SUBTAB 2: LEGACY CANDIDATE MATCHER */}
+                {/* SUBTAB 2: APPLICATIONS MANAGEMENT */}
+                {recruiterSubTab === 'applications' && (
+                  <div className="flex flex-col gap-6">
+                    {/* Header and Filters Bar */}
+                    <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-3 items-center flex-1">
+                        <div className="relative min-w-[200px]">
+                          <input
+                            type="text"
+                            value={recruiterAppKeyword}
+                            onChange={(e) => setRecruiterAppKeyword(e.target.value)}
+                            placeholder="Search name, email, headline..."
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        {/* Filter by Job */}
+                        <select
+                          value={recruiterAppJobFilter}
+                          onChange={(e) => setRecruiterAppJobFilter(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="">All Jobs</option>
+                          {recruiterJobs.map((j) => (
+                            <option key={j.id} value={j.id}>
+                              {j.title} ({j.status})
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* Filter by Status */}
+                        <select
+                          value={recruiterAppStatusFilter}
+                          onChange={(e) => setRecruiterAppStatusFilter(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                        >
+                          <option value="">All Statuses</option>
+                          <option value="SUBMITTED">Submitted</option>
+                          <option value="UNDER_REVIEW">Under Review</option>
+                          <option value="SHORTLISTED">Shortlisted</option>
+                          <option value="HIRED">Hired</option>
+                          <option value="REJECTED">Rejected</option>
+                          <option value="WITHDRAWN">Withdrawn</option>
+                        </select>
+                      </div>
+
+                      <div className="text-xs text-slate-400">
+                        Total Applicants: <strong className="text-slate-200">{recruiterApplications.length}</strong>
+                      </div>
+                    </div>
+
+                    {/* Applications List */}
+                    {recruiterAppsLoading ? (
+                      <div className="text-center py-12 text-indigo-400 animate-pulse text-xs">
+                        Loading applicant applications...
+                      </div>
+                    ) : recruiterApplications.length === 0 ? (
+                      <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+                        <p className="text-sm font-medium">No applications found.</p>
+                        <p className="text-xs text-slate-600 mt-1">Applications submitted to your published jobs will appear here.</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {recruiterApplications.map((app) => (
+                          <div
+                            key={app.id}
+                            className="bg-slate-950/60 border border-slate-800 hover:border-slate-700 rounded-xl p-5 transition flex flex-wrap justify-between items-center gap-4"
+                          >
+                            <div className="flex flex-col gap-1 max-w-xl">
+                              <div className="flex items-center gap-2.5">
+                                <h3 className="font-bold text-slate-100 text-base">
+                                  {app.candidate_name || 'Anonymous Candidate'}
+                                </h3>
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                    app.status === 'SUBMITTED'
+                                      ? 'bg-blue-950 text-blue-400 border border-blue-800'
+                                      : app.status === 'UNDER_REVIEW'
+                                      ? 'bg-amber-950 text-amber-400 border border-amber-800'
+                                      : app.status === 'SHORTLISTED'
+                                      ? 'bg-purple-950 text-purple-400 border border-purple-800'
+                                      : app.status === 'HIRED'
+                                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                      : app.status === 'REJECTED'
+                                      ? 'bg-rose-950 text-rose-400 border border-rose-800'
+                                      : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                  }`}
+                                >
+                                  {app.status}
+                                </span>
+                              </div>
+
+                              <div className="text-xs text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
+                                <span>Applied For: <strong className="text-indigo-400">{app.job_title}</strong></span>
+                                {app.candidate_email && <span>Email: <strong>{app.candidate_email}</strong></span>}
+                                {app.candidate_headline && <span>Headline: <em>{app.candidate_headline}</em></span>}
+                              </div>
+
+                              <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-1">
+                                <span>Applied: {new Date(app.submitted_at).toLocaleString()}</span>
+                                <span>·</span>
+                                <span>Pinned Resume: <strong className="text-slate-300">{app.resume_filename}</strong></span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDownloadSubmittedResume(app.id, app.resume_filename)}
+                                className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5"
+                              >
+                                <span>⬇️</span> Resume
+                              </button>
+                              <button
+                                onClick={() => openRecruiterAppDetail(app)}
+                                className="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold shadow transition"
+                              >
+                                Manage Status & Details
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SUBTAB 3: AI CANDIDATE SCREENING ENGINE */}
+                {recruiterSubTab === 'screening' && (
+                  <div className="flex flex-col gap-6">
+                    {/* Header Controls & Job Selector */}
+                    <div className="bg-slate-950/40 border border-slate-800 rounded-2xl p-4 flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-3 items-center flex-1">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                            Target Job
+                          </label>
+                          <select
+                            value={screeningJobId}
+                            onChange={(e) => {
+                              setScreeningJobId(e.target.value);
+                              fetchScreeningRuns(e.target.value);
+                            }}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-purple-500"
+                          >
+                            {recruiterJobs.map((j) => (
+                              <option key={j.id} value={j.id}>
+                                {j.title} ({j.status})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {screeningRuns.length > 0 && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                              Screening Run
+                            </label>
+                            <select
+                              value={selectedRunId}
+                              onChange={(e) => setSelectedRunId(e.target.value)}
+                              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-purple-500"
+                            >
+                              {screeningRuns.map((r, idx) => (
+                                <option key={r.id} value={r.id}>
+                                  Run #{screeningRuns.length - idx}: {new Date(r.created_at).toLocaleString()} ({r.status} - {r.total_applications} apps)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      {isRecruiterOrAbove && (
+                        <button
+                          onClick={() => handleOpenTriggerModal()}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-purple-900/30 transition flex items-center gap-2"
+                        >
+                          <span>⚡</span> Trigger New Screening Run
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Decision-Support Regulatory & Fairness Notice */}
+                    <div className="p-4 bg-purple-950/30 border border-purple-800/60 rounded-xl text-xs text-purple-200 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-purple-100 flex items-center gap-1.5">
+                          <span>🛡️</span> Decision-Support Notice: Explainable AI Evaluation
+                        </div>
+                        <p className="text-[11px] text-purple-300/90 leading-relaxed max-w-4xl">
+                          Candidate scores are calculated deterministically using extracted resume evidence: <strong>60% Required Skills</strong>, <strong>15% Preferred Skills</strong>, and <strong>25% Experience</strong>. Missing resume evidence does not establish that a candidate lacks a capability. All shortlisting and hiring decisions remain strictly human-driven.
+                        </p>
+                      </div>
+                      <div className="text-[10px] bg-purple-900/40 border border-purple-700/50 px-2.5 py-1 rounded-md text-purple-300 shrink-0">
+                        Formula: Deterministic v1.0.0
+                      </div>
+                    </div>
+
+                    {/* Historical Runs Strip */}
+                    {screeningRuns.length > 0 && (
+                      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                        <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider shrink-0">
+                          Runs:
+                        </span>
+                        {screeningRuns.map((r) => {
+                          const isSelected = r.id === selectedRunId;
+                          return (
+                            <button
+                              key={r.id}
+                              onClick={() => setSelectedRunId(r.id)}
+                              className={`px-3 py-1.5 rounded-lg border transition shrink-0 flex items-center gap-2 text-xs ${
+                                isSelected
+                                  ? 'bg-purple-900/80 border-purple-500 text-purple-100 font-semibold'
+                                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <span>{new Date(r.created_at).toLocaleDateString()}</span>
+                              <span
+                                className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                                  r.status === 'COMPLETED'
+                                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                    : r.status === 'PROCESSING'
+                                    ? 'bg-blue-950 text-blue-400 border border-blue-800 animate-pulse'
+                                    : 'bg-red-950 text-red-400 border border-red-800'
+                                }`}
+                              >
+                                {r.status}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                ({r.processed_applications}/{r.total_applications})
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Filter and Search Bar for Current Run */}
+                    {selectedRunId && (
+                      <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 flex flex-wrap gap-3 items-center justify-between text-xs">
+                        <div className="flex flex-wrap gap-3 items-center flex-1">
+                          <input
+                            type="text"
+                            placeholder="Filter by candidate name or email..."
+                            value={screeningKeyword}
+                            onChange={(e) => setScreeningKeyword(e.target.value)}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-purple-500 min-w-[220px]"
+                          />
+                          <select
+                            value={screeningScoreFilter}
+                            onChange={(e) => setScreeningScoreFilter(e.target.value)}
+                            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-100 focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="">All Scores</option>
+                            <option value="75">Strong Match (≥ 75%)</option>
+                            <option value="50">Moderate Match (≥ 50%)</option>
+                            <option value="25">Low Match (≥ 25%)</option>
+                          </select>
+                        </div>
+                        <div className="text-slate-400 text-[11px]">
+                          Ranked Leaderboard ({screeningResults.length} candidates)
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Results Table / Leaderboard */}
+                    {screeningRunsLoading || screeningResultsLoading ? (
+                      <div className="p-12 text-center text-slate-500 text-xs">
+                        Loading candidate screening evaluations...
+                      </div>
+                    ) : screeningRuns.length === 0 ? (
+                      <div className="p-12 text-center bg-slate-950/30 border border-dashed border-slate-800 rounded-2xl flex flex-col items-center gap-3">
+                        <span className="text-3xl">🎯</span>
+                        <div className="font-semibold text-slate-300 text-sm">
+                          No Screening Runs Found for this Job
+                        </div>
+                        <p className="text-xs text-slate-500 max-w-md">
+                          Trigger an AI screening run to evaluate all submitted candidate applications against job requirements using grounded evidence and deterministic scoring.
+                        </p>
+                        {isRecruiterOrAbove && (
+                          <button
+                            onClick={() => handleOpenTriggerModal()}
+                            className="mt-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold shadow transition"
+                          >
+                            Start Candidate Screening
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60 shadow-xl">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs text-slate-300">
+                            <thead className="bg-slate-950/80 text-slate-400 text-[11px] uppercase tracking-wider border-b border-slate-800">
+                              <tr>
+                                <th className="py-3 px-4 w-12 text-center">Rank</th>
+                                <th className="py-3 px-4">Candidate</th>
+                                <th className="py-3 px-4">Submitted Resume</th>
+                                <th className="py-3 px-4">Required Skills (60%)</th>
+                                <th className="py-3 px-4">Exp Score (25%)</th>
+                                <th className="py-3 px-4 text-center">Overall Score</th>
+                                <th className="py-3 px-4 text-center">Confidence</th>
+                                <th className="py-3 px-4 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {screeningResults
+                                .filter((item) => {
+                                  if (!screeningKeyword.trim()) return true;
+                                  const kw = screeningKeyword.toLowerCase();
+                                  return (
+                                    (item.candidate_name || '').toLowerCase().includes(kw) ||
+                                    (item.candidate_email || '').toLowerCase().includes(kw)
+                                  );
+                                })
+                                .map((item, idx) => {
+                                  const score = item.total_score ?? 0;
+                                  const scoreColor =
+                                    score >= 75
+                                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                                      : score >= 50
+                                      ? 'bg-amber-950 text-amber-300 border-amber-700'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700';
+
+                                  return (
+                                    <React.Fragment key={item.id}>
+                                      <tr className="hover:bg-slate-800/40 transition">
+                                        <td className="py-3 px-4 text-center font-bold text-slate-400">
+                                          #{idx + 1}
+                                        </td>
+                                      <td className="py-3 px-4">
+                                        <div className="font-semibold text-slate-100">
+                                          {item.candidate_name || 'Anonymous Candidate'}
+                                        </div>
+                                        <div className="text-[11px] text-slate-400">
+                                          {item.candidate_email || 'No email provided'}
+                                        </div>
+                                        {item.candidate_headline && (
+                                          <div className="text-[10px] text-indigo-400 truncate max-w-[200px]">
+                                            {item.candidate_headline}
+                                          </div>
+                                        )}
+                                        <button
+                                          onClick={() => toggleExpandResult(item.id)}
+                                          className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1 mt-1 transition"
+                                        >
+                                          <span>💡</span> Why this score? {expandedResultIds[item.id] ? '▲' : '▼'}
+                                        </button>
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <button
+                                          onClick={() =>
+                                            handleDownloadSubmittedResume(
+                                              item.application_id,
+                                              item.resume_filename || 'submitted_resume.pdf'
+                                            )
+                                          }
+                                          className="text-xs text-indigo-400 hover:text-indigo-300 underline font-mono flex items-center gap-1"
+                                          title="Download exactly pinned submitted resume"
+                                        >
+                                          <span>📄</span> {item.resume_filename || 'resume.pdf'}
+                                        </button>
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-20 bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                                            <div
+                                              className="bg-purple-500 h-full rounded-full"
+                                              style={{ width: `${item.required_skill_score || 0}%` }}
+                                            />
+                                          </div>
+                                          <span className="font-mono text-[11px] text-slate-200">
+                                            {item.required_skill_score?.toFixed(0) || 0}%
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5">
+                                          {item.matched_skills_count} matched · {item.missing_evidence_count} missing
+                                        </div>
+                                      </td>
+                                      <td className="py-3 px-4 font-mono text-slate-300">
+                                        {item.experience_score !== null && item.experience_score !== undefined
+                                          ? `${item.experience_score.toFixed(0)}%`
+                                          : 'N/A'}
+                                      </td>
+                                      <td className="py-3 px-4 text-center">
+                                        <span
+                                          className={`inline-block px-2.5 py-1 rounded-full text-xs font-mono font-bold border ${scoreColor}`}
+                                        >
+                                          {item.total_score !== null && item.total_score !== undefined
+                                            ? `${item.total_score.toFixed(1)}/100`
+                                            : 'PENDING'}
+                                        </span>
+                                      </td>
+                                      <td className="py-3 px-4 text-center">
+                                        <span
+                                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                            item.confidence_level === 'HIGH'
+                                              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'
+                                              : item.confidence_level === 'MEDIUM'
+                                              ? 'bg-amber-950/80 text-amber-400 border border-amber-800'
+                                              : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                          }`}
+                                        >
+                                          {item.confidence_level || 'UNKNOWN'}
+                                        </span>
+                                      </td>
+                                      <td className="py-3 px-4 text-right">
+                                        <button
+                                          onClick={() => openResultDetailModal(item.id)}
+                                          className="px-3 py-1.5 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 rounded-lg transition font-medium text-xs flex items-center gap-1.5 ml-auto"
+                                        >
+                                          <span>🔍</span> View Evidence
+                                        </button>
+                                      </td>
+                                    </tr>
+
+                                    {/* Expandable "Why this score?" compact section */}
+                                    {expandedResultIds[item.id] && (
+                                      <tr key={`${item.id}-insight`} className="bg-purple-950/20 border-b border-purple-900/30 animate-fadeIn">
+                                        <td colSpan={8} className="py-3 px-6">
+                                          <div className="flex flex-col gap-2 text-xs">
+                                            <div className="flex items-center justify-between">
+                                              <div className="font-semibold text-purple-300 flex items-center gap-1.5">
+                                                <span>💡</span> Candidate Insight: Why this score?
+                                                <span className="text-[10px] bg-purple-900/40 border border-purple-700/50 px-2 py-0.2 rounded text-purple-200">
+                                                  Decision-Support AI
+                                                </span>
+                                              </div>
+                                              <button
+                                                onClick={() => openResultDetailModal(item.id)}
+                                                className="text-[11px] text-purple-400 hover:text-purple-200 underline font-medium"
+                                              >
+                                                View Complete Breakdown & Evidence Quotes →
+                                              </button>
+                                            </div>
+                                            <p className="text-slate-300 leading-relaxed text-[11px] max-w-4xl">
+                                              {item.insight_summary || 'Evidence evaluated against job requirements. Click below for complete breakdown.'}
+                                            </p>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
+                              {screeningResults.length === 0 && (
+                                <tr>
+                                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                                    No candidate applications evaluated in this run.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SUBTAB 4: CANDIDATE MATCHER PIPELINE */}
                 {recruiterSubTab === 'matcher' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <section className="flex flex-col gap-4 bg-slate-950/40 p-6 rounded-xl border border-slate-800">
@@ -2149,6 +3404,843 @@ export default function App() {
                           </button>
                         </div>
                       </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* 1. APPLY TO JOB MODAL */}
+                {isApplyModalOpen && applyJob && (
+                  <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl flex flex-col gap-4">
+                      <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-100">Apply for Job</h2>
+                          <div className="text-xs text-indigo-400 font-medium mt-0.5">
+                            {applyJob.title} · {applyJob.organization_name}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setIsApplyModalOpen(false)}
+                          className="text-slate-400 hover:text-slate-100 text-sm font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {applyError && (
+                        <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 text-xs rounded-lg">
+                          {applyError}
+                        </div>
+                      )}
+
+                      {applySuccess && (
+                        <div className="p-3 bg-emerald-950/60 border border-emerald-800 text-emerald-300 text-xs rounded-lg">
+                          ✓ {applySuccess}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleApplySubmit} className="flex flex-col gap-4 text-xs">
+                        {/* Resume Selector */}
+                        <div>
+                          <label className="block font-semibold text-slate-300 mb-1">
+                            Select Resume Version to Pin *
+                          </label>
+                          {resumes.length === 0 ? (
+                            <div className="p-3 bg-amber-950/40 border border-amber-800/60 rounded-lg text-amber-300">
+                              No uploaded resumes found. Please go to the{' '}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsApplyModalOpen(false);
+                                  setActiveTab('candidate');
+                                  setCandidateSubTab('profile-resumes');
+                                }}
+                                className="underline font-bold"
+                              >
+                                Candidate Portal
+                              </button>{' '}
+                              to upload a resume before applying.
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {resumes.map((r) => {
+                                const isEligible = r.parsing_status !== 'FAILED';
+                                return (
+                                  <label
+                                    key={r.id}
+                                    className={`flex items-center justify-between p-3 rounded-xl border transition cursor-pointer ${
+                                      selectedResumeId === r.id
+                                        ? 'bg-indigo-950/60 border-indigo-500'
+                                        : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                                    } ${!isEligible ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <input
+                                        type="radio"
+                                        name="selectedResume"
+                                        value={r.id}
+                                        disabled={!isEligible}
+                                        checked={selectedResumeId === r.id}
+                                        onChange={() => setSelectedResumeId(r.id)}
+                                        className="accent-indigo-600"
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="font-semibold text-slate-200">{r.original_filename}</span>
+                                        <span className="text-[10px] text-slate-500">
+                                          Uploaded: {new Date(r.created_at).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      {r.is_active && (
+                                        <span className="px-2 py-0.5 text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 rounded font-bold uppercase">
+                                          Active
+                                        </span>
+                                      )}
+                                      {!isEligible && (
+                                        <span className="px-2 py-0.5 text-[10px] bg-red-950 text-red-400 border border-red-800 rounded font-bold">
+                                          Parse Failed
+                                        </span>
+                                      )}
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Note: The chosen resume file will be strictly pinned to this application and cannot be deleted while the application exists.
+                          </p>
+                        </div>
+
+                        {/* Cover Letter */}
+                        <div>
+                          <label className="block font-semibold text-slate-300 mb-1">
+                            Cover Letter (Optional)
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={coverLetter}
+                            onChange={(e) => setCoverLetter(e.target.value)}
+                            placeholder="Introduce yourself and explain why you're a great fit for this position..."
+                            className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 resize-none"
+                          />
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="border-t border-slate-800 pt-3 flex justify-end gap-3 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsApplyModalOpen(false)}
+                            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={applyLoading || !selectedResumeId}
+                            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow transition disabled:opacity-50"
+                          >
+                            {applyLoading ? 'Submitting Application...' : 'Confirm & Submit Application'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. CANDIDATE APPLICATION DETAILS MODAL */}
+                {selectedCandidateApp && (
+                  <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl flex flex-col gap-4">
+                      <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-100">{selectedCandidateApp.job_title}</h2>
+                          <div className="text-xs text-indigo-400 font-medium">
+                            {selectedCandidateApp.organization_name}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setSelectedCandidateApp(null)}
+                          className="text-slate-400 hover:text-slate-100 text-sm font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="space-y-3 text-xs text-slate-300">
+                        <div className="flex justify-between items-center p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                          <span className="text-slate-400 font-semibold">Application Status</span>
+                          <span className="text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-indigo-950 text-indigo-300 border border-indigo-800">
+                            {selectedCandidateApp.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+                          <div>Submitted: <strong className="text-slate-200">{new Date(selectedCandidateApp.submitted_at).toLocaleString()}</strong></div>
+                          <div>Updated: <strong className="text-slate-200">{new Date(selectedCandidateApp.status_updated_at).toLocaleString()}</strong></div>
+                          {selectedCandidateApp.withdrawn_at && (
+                            <div className="col-span-2 text-rose-400">Withdrawn on: <strong>{new Date(selectedCandidateApp.withdrawn_at).toLocaleString()}</strong></div>
+                          )}
+                        </div>
+
+                        <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                          <span className="text-slate-400 font-semibold block mb-1">Pinned Resume</span>
+                          <span className="text-indigo-300 font-medium">📄 {selectedCandidateApp.resume_filename}</span>
+                        </div>
+
+                        {selectedCandidateApp.cover_letter && (
+                          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800">
+                            <span className="text-slate-400 font-semibold block mb-1">Submitted Cover Letter</span>
+                            <p className="whitespace-pre-line text-slate-300 leading-relaxed text-xs">
+                              {selectedCandidateApp.cover_letter}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs">
+                        {['SUBMITTED', 'UNDER_REVIEW', 'SHORTLISTED'].includes(selectedCandidateApp.status) ? (
+                          <button
+                            onClick={() => handleWithdrawApplication(selectedCandidateApp.id)}
+                            className="px-3 py-1.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded-lg transition"
+                          >
+                            Withdraw Application
+                          </button>
+                        ) : <div />}
+                        <button
+                          onClick={() => setSelectedCandidateApp(null)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. RECRUITER APPLICATION DETAIL & STATUS HISTORY MODAL */}
+                {isRecruiterAppModalOpen && selectedRecruiterAppDetail && (
+                  <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl flex flex-col gap-4">
+                      <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-100">
+                            {selectedRecruiterAppDetail.candidate_name || 'Candidate Application'}
+                          </h2>
+                          <div className="text-xs text-indigo-400 font-medium mt-0.5">
+                            Position: {selectedRecruiterAppDetail.job_title}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setIsRecruiterAppModalOpen(false)}
+                          className="text-slate-400 hover:text-slate-100 text-sm font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Candidate Snapshot & Resume Download */}
+                      <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-wrap justify-between items-center gap-4 text-xs">
+                        <div className="space-y-1">
+                          <div>Email: <strong className="text-slate-200">{selectedRecruiterAppDetail.candidate_email}</strong></div>
+                          {selectedRecruiterAppDetail.candidate_headline && (
+                            <div>Headline: <strong className="text-slate-200">{selectedRecruiterAppDetail.candidate_headline}</strong></div>
+                          )}
+                          <div className="text-[11px] text-slate-500">
+                            Pinned Resume: <strong className="text-slate-300">{selectedRecruiterAppDetail.resume_filename}</strong>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleDownloadSubmittedResume(selectedRecruiterAppDetail.id, selectedRecruiterAppDetail.resume_filename)}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold shadow transition flex items-center gap-1.5"
+                        >
+                          <span>⬇️</span> Download Submitted PDF
+                        </button>
+                      </div>
+
+                      {/* Cover Letter */}
+                      {selectedRecruiterAppDetail.cover_letter && (
+                        <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-xs">
+                          <span className="font-semibold text-slate-400 block mb-1">Cover Letter</span>
+                          <p className="whitespace-pre-line text-slate-300 leading-relaxed">
+                            {selectedRecruiterAppDetail.cover_letter}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Status Update Form (Only for Recruiter / Admin / Owner) */}
+                      {isRecruiterOrAbove ? (
+                        <div className="p-4 bg-slate-950/80 rounded-xl border border-slate-800 flex flex-col gap-3">
+                          <h4 className="font-semibold text-slate-200 text-xs">Update Application Status</h4>
+
+                          {statusUpdateError && (
+                            <div className="p-2.5 bg-red-950/60 border border-red-800 text-red-300 text-xs rounded-lg">
+                              {statusUpdateError}
+                            </div>
+                          )}
+
+                          <form onSubmit={handleUpdateAppStatus} className="flex flex-col gap-3 text-xs">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-slate-400 mb-1">Select Next Status *</label>
+                                <select
+                                  value={statusUpdateVal}
+                                  onChange={(e) => setStatusUpdateVal(e.target.value)}
+                                  required
+                                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                                >
+                                  <option value="">Choose transition...</option>
+                                  {selectedRecruiterAppDetail.status === 'SUBMITTED' && (
+                                    <>
+                                      <option value="UNDER_REVIEW">Move to Under Review</option>
+                                      <option value="SHORTLISTED">Shortlist Candidate</option>
+                                      <option value="REJECTED">Reject Application</option>
+                                    </>
+                                  )}
+                                  {selectedRecruiterAppDetail.status === 'UNDER_REVIEW' && (
+                                    <>
+                                      <option value="SHORTLISTED">Shortlist Candidate</option>
+                                      <option value="REJECTED">Reject Application</option>
+                                    </>
+                                  )}
+                                  {selectedRecruiterAppDetail.status === 'SHORTLISTED' && (
+                                    <>
+                                      <option value="HIRED">Mark as Hired</option>
+                                      <option value="REJECTED">Reject Application</option>
+                                    </>
+                                  )}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-slate-400 mb-1">Internal Note (Private to Recruiters)</label>
+                                <input
+                                  type="text"
+                                  value={statusUpdateNote}
+                                  onChange={(e) => setStatusUpdateNote(e.target.value)}
+                                  placeholder="e.g. Cleared technical interview"
+                                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end">
+                              <button
+                                type="submit"
+                                disabled={statusUpdating || !statusUpdateVal}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold shadow transition disabled:opacity-50"
+                              >
+                                {statusUpdating ? 'Updating Status...' : 'Apply Status Transition'}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl text-xs text-slate-400">
+                          Read-only access: Organization Viewers cannot change application statuses.
+                        </div>
+                      )}
+
+                      {/* Status History Timeline */}
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-slate-300 text-xs">Application Status Audit Timeline</h4>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {selectedRecruiterAppDetail.status_history.map((h) => (
+                            <div
+                              key={h.id}
+                              className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 text-xs flex justify-between items-start gap-3"
+                            >
+                              <div>
+                                <div className="font-semibold text-slate-200">
+                                  {h.previous_status ? `${h.previous_status} → ${h.new_status}` : `Initial Status: ${h.new_status}`}
+                                </div>
+                                {h.internal_note && (
+                                  <div className="text-slate-400 mt-0.5 italic">Note: "{h.internal_note}"</div>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                                {new Date(h.changed_at).toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-800 pt-3 flex justify-end">
+                        <button
+                          onClick={() => setIsRecruiterAppModalOpen(false)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition text-xs"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. TRIGGER SCREENING CONFIRMATION MODAL */}
+                {isTriggerModalOpen && triggerJob && (
+                  <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 text-xs">
+                      <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+                        <div>
+                          <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                            <span>⚡</span> Trigger Candidate Screening
+                          </h2>
+                          <div className="text-slate-400 text-xs mt-0.5">
+                            Job: <strong className="text-purple-300">{triggerJob.title}</strong>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setIsTriggerModalOpen(false)}
+                          className="text-slate-400 hover:text-slate-100 text-sm font-bold"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {triggerError && (
+                        <div className="p-3 bg-red-950/60 border border-red-800 text-red-300 rounded-lg">
+                          {triggerError}
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                          <div className="font-semibold text-slate-300">Target Requirements Evaluated:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {triggerJob.required_skills.map((s, idx) => (
+                              <span key={idx} className="px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded font-medium text-[11px]">
+                                {s} (Required)
+                              </span>
+                            ))}
+                            {triggerJob.preferred_skills.map((s, idx) => (
+                              <span key={idx} className="px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700 rounded text-[11px]">
+                                {s} (Preferred)
+                              </span>
+                            ))}
+                          </div>
+                          {(triggerJob.experience_min !== null || triggerJob.experience_max !== null) && (
+                            <div className="text-[11px] text-slate-400">
+                              Experience: {triggerJob.experience_min ?? 0} to {triggerJob.experience_max ?? '+'} years
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-3 bg-amber-950/30 border border-amber-800/50 rounded-xl text-amber-200 space-y-1">
+                          <div className="font-semibold flex items-center gap-1.5">
+                            <span>⚙️</span> Sequential Inference & Resource Guardrails
+                          </div>
+                          <p className="text-[11px] text-amber-300/90 leading-relaxed">
+                            Screening executes sequentially via local Ollama models (qwen3:4b primary, llama3.2:1b fallback) to protect host memory. Only one screening run can be active at a time for this job.
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl text-slate-400 leading-relaxed text-[11px]">
+                          <strong>Decision-Support Notice:</strong> Generated scores and evidence citations assist recruiters in review. TalentLens never makes automatic hiring or rejection decisions.
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-800 pt-3 flex justify-end gap-3 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsTriggerModalOpen(false)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={triggerLoading}
+                          onClick={handleTriggerScreening}
+                          className="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg shadow-lg shadow-purple-900/30 transition disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {triggerLoading ? (
+                            <>
+                              <span className="animate-spin">⏳</span>
+                              <span>Starting Sequential Screening...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>⚡</span>
+                              <span>Confirm & Run Screening</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. SCREENING RESULT DETAIL & GROUNDED EVIDENCE MODAL */}
+                {isResultDetailModalOpen && (
+                  <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl flex flex-col gap-5 text-xs">
+                      {resultDetailLoading || !selectedResultDetail ? (
+                        <div className="py-12 text-center text-slate-400">
+                          Loading candidate evidence and scoring breakdown...
+                        </div>
+                      ) : (
+                        <>
+                          {/* Modal Header */}
+                          <div className="flex justify-between items-start border-b border-slate-800 pb-4">
+                            <div>
+                              <div className="flex items-center gap-3">
+                                <h2 className="text-lg font-bold text-slate-100">
+                                  {selectedResultDetail.candidate_name || 'Candidate Evaluation'}
+                                </h2>
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-mono font-bold border ${
+                                    (selectedResultDetail.total_score ?? 0) >= 75
+                                      ? 'bg-emerald-950 text-emerald-300 border-emerald-700'
+                                      : (selectedResultDetail.total_score ?? 0) >= 50
+                                      ? 'bg-amber-950 text-amber-300 border-amber-700'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                                  }`}
+                                >
+                                  {selectedResultDetail.total_score != null
+                                    ? `${selectedResultDetail.total_score.toFixed(1)} / 100`
+                                    : 'PENDING'}
+                                </span>
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                    selectedResultDetail.confidence_level === 'HIGH'
+                                      ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'
+                                      : 'bg-amber-950/80 text-amber-400 border border-amber-800'
+                                  }`}
+                                >
+                                  Confidence: {selectedResultDetail.confidence_level || 'UNKNOWN'}
+                                </span>
+                              </div>
+                              <div className="text-slate-400 text-xs mt-1">
+                                {selectedResultDetail.candidate_email} · {selectedResultDetail.candidate_headline || 'Candidate'}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setIsResultDetailModalOpen(false)}
+                              className="text-slate-400 hover:text-slate-100 text-base font-bold p-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          {/* Pinned Resume Banner */}
+                          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                            <div>
+                              <span className="text-slate-400">Evaluated Submitted Resume: </span>
+                              <strong className="text-slate-200 font-mono">{selectedResultDetail.resume_filename || 'submitted_resume.pdf'}</strong>
+                              <span className="text-[11px] text-slate-500 block">
+                                Immutable pinned resume submitted by candidate at time of application
+                              </span>
+                            </div>
+                            <button
+                              onClick={() =>
+                                handleDownloadSubmittedResume(
+                                  selectedResultDetail.application_id,
+                                  selectedResultDetail.resume_filename || 'resume.pdf'
+                                )
+                              }
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition flex items-center gap-1.5"
+                            >
+                              <span>⬇️</span> Download PDF
+                            </button>
+                          </div>
+
+                          {/* Component Score Cards */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="p-3.5 bg-purple-950/30 border border-purple-800/50 rounded-xl">
+                              <div className="text-[11px] text-purple-400 font-semibold uppercase tracking-wider">
+                                Required Skills (60%)
+                              </div>
+                              <div className="text-xl font-bold font-mono text-purple-200 mt-1">
+                                {selectedResultDetail.required_skill_score != null
+                                  ? `${selectedResultDetail.required_skill_score.toFixed(0)}%`
+                                  : 'N/A'}
+                              </div>
+                              <div className="text-[10px] text-purple-400/80 mt-1">
+                                {selectedResultDetail.matched_skills.length} matched / {selectedResultDetail.missing_evidence.length} missing
+                              </div>
+                            </div>
+
+                            <div className="p-3.5 bg-indigo-950/30 border border-indigo-800/50 rounded-xl">
+                              <div className="text-[11px] text-indigo-400 font-semibold uppercase tracking-wider">
+                                Preferred Skills (15%)
+                              </div>
+                              <div className="text-xl font-bold font-mono text-indigo-200 mt-1">
+                                {selectedResultDetail.preferred_skill_score != null
+                                  ? `${selectedResultDetail.preferred_skill_score.toFixed(0)}%`
+                                  : 'N/A'}
+                              </div>
+                              <div className="text-[10px] text-indigo-400/80 mt-1">
+                                {selectedResultDetail.preferred_skill_matches.length} matched
+                              </div>
+                            </div>
+
+                            <div className="p-3.5 bg-slate-950/50 border border-slate-800 rounded-xl">
+                              <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+                                Experience Assessment (25%)
+                              </div>
+                              <div className="text-xl font-bold font-mono text-slate-200 mt-1">
+                                {selectedResultDetail.experience_score != null
+                                  ? `${selectedResultDetail.experience_score.toFixed(0)}%`
+                                  : 'N/A'}
+                              </div>
+                              <div className="text-[10px] text-slate-400 mt-1 truncate">
+                                Status: {selectedResultDetail.experience_assessment?.status || 'Assessed'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* AI Candidate Insight Generator: "Why this score?" */}
+                          {selectedResultDetail.insight && (
+                            <div className="p-4 bg-gradient-to-br from-purple-950/40 via-slate-900 to-indigo-950/30 border border-purple-800/60 rounded-xl space-y-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-purple-800/40 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">💡</span>
+                                  <div>
+                                    <h3 className="font-bold text-purple-200 text-sm">
+                                      Candidate Insight: Why this score?
+                                    </h3>
+                                    <span className="text-[10px] text-purple-300/80">
+                                      Decision-Support AI · Model: {selectedResultDetail.insight.model_id} · Schema: {selectedResultDetail.insight.prompt_version}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {selectedResultDetail.insight.status === 'FAILED' ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-medium">
+                                        Fallback Insight
+                                      </span>
+                                      <button
+                                        disabled={retryingInsight}
+                                        onClick={() => handleRetryInsight(selectedResultDetail.id)}
+                                        className="px-2.5 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-[11px] font-semibold transition disabled:opacity-50"
+                                      >
+                                        {retryingInsight ? 'Retrying...' : 'Retry AI Generation'}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-medium">
+                                      ✓ Validated Insight
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Summary */}
+                              <div className="p-3 bg-slate-950/70 rounded-lg border border-purple-900/30 text-xs">
+                                <span className="font-semibold text-purple-300 block mb-1">Summary Alignment</span>
+                                <p className="text-slate-200 leading-relaxed">
+                                  {selectedResultDetail.insight.insight_data.summary}
+                                </p>
+                              </div>
+
+                              {/* Key Strengths */}
+                              {selectedResultDetail.insight.insight_data.key_strengths && selectedResultDetail.insight.insight_data.key_strengths.length > 0 && (
+                                <div className="space-y-2">
+                                  <h4 className="font-semibold text-purple-200 text-xs flex items-center gap-1.5">
+                                    <span>🌟</span> Demonstrated Key Strengths
+                                  </h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {selectedResultDetail.insight.insight_data.key_strengths.map((str, idx) => (
+                                      <div key={idx} className="p-3 bg-purple-950/20 border border-purple-900/40 rounded-lg text-xs space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <strong className="text-purple-300">{str.title}</strong>
+                                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-900/50 text-purple-200 border border-purple-700/50">
+                                            {str.category}
+                                          </span>
+                                        </div>
+                                        <p className="text-slate-300 text-[11px] leading-relaxed">{str.description}</p>
+                                        {str.supporting_evidence && str.supporting_evidence.length > 0 && (
+                                          <div className="text-[10px] text-slate-400 italic border-l border-purple-700 pl-2 mt-1">
+                                            "{str.supporting_evidence[0]}"
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Relevant Projects */}
+                              {selectedResultDetail.insight.insight_data.relevant_projects && selectedResultDetail.insight.insight_data.relevant_projects.length > 0 && (
+                                <div className="space-y-2">
+                                  <h4 className="font-semibold text-purple-200 text-xs flex items-center gap-1.5">
+                                    <span>🚀</span> Relevant Demonstrated Projects
+                                  </h4>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {selectedResultDetail.insight.insight_data.relevant_projects.map((proj, idx) => (
+                                      <div key={idx} className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-lg text-xs space-y-1">
+                                        <div className="flex flex-wrap items-center justify-between gap-1">
+                                          <strong className="text-indigo-300">{proj.project_name}</strong>
+                                          <div className="flex flex-wrap gap-1">
+                                            {(proj.relevant_requirements || []).map((req, rIdx) => (
+                                              <span key={rIdx} className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-900/60 text-indigo-200 border border-indigo-700/50">
+                                                {req}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        <p className="text-slate-300 text-[11px] leading-relaxed">{proj.description}</p>
+                                        {proj.supporting_evidence && proj.supporting_evidence.length > 0 && (
+                                          <div className="text-[10px] text-slate-400 italic border-l border-indigo-700 pl-2 mt-1">
+                                            "{proj.supporting_evidence[0]}"
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Uncertainties (if any) */}
+                              {selectedResultDetail.insight.insight_data.uncertainties && selectedResultDetail.insight.insight_data.uncertainties.length > 0 && (
+                                <div className="p-3 bg-amber-950/30 border border-amber-900/50 rounded-lg text-xs space-y-1">
+                                  <div className="font-semibold text-amber-300 flex items-center gap-1">
+                                    <span>⚠️</span> Information Uncertainties
+                                  </div>
+                                  <ul className="list-disc list-inside text-amber-200/90 text-[11px] space-y-0.5">
+                                    {selectedResultDetail.insight.insight_data.uncertainties.map((u, idx) => (
+                                      <li key={idx}>{u}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Score Explanation Narrative */}
+                              {selectedResultDetail.insight.insight_data.score_explanation && (
+                                <div className="text-[11px] text-slate-400 leading-relaxed italic border-t border-purple-900/40 pt-2">
+                                  <strong>Scoring Rationale:</strong> {selectedResultDetail.insight.insight_data.score_explanation}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Grounded Explanation Narrative */}
+                          <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl space-y-1.5">
+                            <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                              <span>📝</span> Deterministic Scoring Narrative
+                            </div>
+                            <p className="text-slate-300 leading-relaxed text-xs">
+                              {selectedResultDetail.explanation}
+                            </p>
+                          </div>
+
+                          {/* Matched Required Skills with Verbatim Evidence Quotes */}
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                              <span className="text-emerald-400">✓</span> Evidenced Required Skills ({selectedResultDetail.matched_skills.length})
+                            </h4>
+                            {selectedResultDetail.matched_skills.length > 0 ? (
+                              <div className="grid grid-cols-1 gap-2">
+                                {selectedResultDetail.matched_skills.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-3 bg-emerald-950/20 border border-emerald-900/40 rounded-xl text-xs space-y-1"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-bold text-emerald-300">
+                                        {item.skill} {item.canonical_skill && `(${item.canonical_skill})`}
+                                      </span>
+                                      <span className="text-[10px] text-emerald-400 font-mono">
+                                        Confidence: {((item.confidence || 1.0) * 100).toFixed(0)}%
+                                      </span>
+                                    </div>
+                                    <div className="text-slate-300 italic text-[11px] pl-2 border-l border-emerald-800">
+                                      "{item.evidence}"
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl text-slate-500 italic">
+                                No required skills were evidenced in the submitted resume.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Missing Evidence Section */}
+                          {selectedResultDetail.missing_evidence.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                <span className="text-amber-400">⚠️</span> Required Skills Not Evidenced ({selectedResultDetail.missing_evidence.length})
+                              </h4>
+                              <div className="grid grid-cols-1 gap-2">
+                                {selectedResultDetail.missing_evidence.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-xl text-xs flex justify-between items-center"
+                                  >
+                                    <span className="font-semibold text-amber-300">{item.skill}</span>
+                                    <span className="text-[11px] text-slate-400 italic">
+                                      Not evidenced in submitted resume — does not establish lack of capability
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Preferred Skills Matches */}
+                          {selectedResultDetail.preferred_skill_matches.length > 0 && (
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                                <span className="text-indigo-400">★</span> Evidenced Preferred Skills ({selectedResultDetail.preferred_skill_matches.length})
+                              </h4>
+                              <div className="grid grid-cols-1 gap-2">
+                                {selectedResultDetail.preferred_skill_matches.map((item, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-3 bg-indigo-950/20 border border-indigo-900/40 rounded-xl text-xs space-y-1"
+                                  >
+                                    <span className="font-semibold text-indigo-300">{item.skill}</span>
+                                    <div className="text-slate-300 italic text-[11px] pl-2 border-l border-indigo-800">
+                                      "{item.evidence}"
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Experience Details */}
+                          {selectedResultDetail.experience_assessment && (
+                            <div className="p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1.5 text-xs">
+                              <div className="font-semibold text-slate-200">
+                                Experience Assessment Details
+                              </div>
+                              <div className="text-slate-300 text-[11px]">
+                                {selectedResultDetail.experience_assessment.note || 'Experience assessed against job requirements.'}
+                              </div>
+                              {selectedResultDetail.experience_assessment.verified_years !== null &&
+                                selectedResultDetail.experience_assessment.verified_years !== undefined && (
+                                  <div className="text-slate-400 text-[11px]">
+                                    Verified Years: <strong className="text-slate-200">{selectedResultDetail.experience_assessment.verified_years}</strong> (Required: {selectedResultDetail.experience_assessment.required_min_years ?? 0} years)
+                                  </div>
+                                )}
+                            </div>
+                          )}
+
+                          {/* Regulatory Human Decision Footer */}
+                          <div className="p-3 bg-purple-950/20 border border-purple-900/40 rounded-xl text-[11px] text-purple-300/80 leading-relaxed">
+                            <strong>Compliance & Decision-Support Notice:</strong> This score represents an automated recommendation calculated strictly from submitted resume text evidence. Missing evidence indicates absence of mention, not necessarily absence of candidate capability. Human recruiters retain full discretion and ownership over interview and hiring decisions.
+                          </div>
+
+                          {/* Modal Footer */}
+                          <div className="border-t border-slate-800 pt-3 flex justify-end">
+                            <button
+                              onClick={() => setIsResultDetailModalOpen(false)}
+                              className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition text-xs font-semibold"
+                            >
+                              Close Report
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

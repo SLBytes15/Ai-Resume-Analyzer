@@ -133,6 +133,12 @@ async def download_resume(
     status_code=status.HTTP_200_OK,
     summary="Set resume as active",
 )
+@router.patch(
+    "/{resume_id}/set-active",
+    response_model=ResumeResponse,
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
 async def make_resume_active(
     resume_id: uuid.UUID = Path(..., description="Resume UUID"),
     current_user: User = Depends(get_current_active_user),

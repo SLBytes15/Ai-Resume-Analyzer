@@ -22,7 +22,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.core.config import settings
 from app.core.database import get_db
 from app.main import app
-from app.models import Base, CandidateProfile, Job, Organization, OrganizationMembership, Resume, User
+from app.models import (
+    Application,
+    ApplicationStatusHistory,
+    Base,
+    CandidateProfile,
+    Job,
+    Organization,
+    OrganizationMembership,
+    Resume,
+    ScreeningInsight,
+    ScreeningResult,
+    ScreeningRun,
+    User,
+)
 from app.services.storage_service import storage_service
 
 
@@ -48,7 +61,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
         await session.execute(
             text(
-                "TRUNCATE TABLE jobs, resumes, candidate_profiles, organization_memberships, organizations, users RESTART IDENTITY CASCADE;"
+                "TRUNCATE TABLE screening_insights, screening_results, screening_runs, application_status_history, applications, jobs, resumes, candidate_profiles, organization_memberships, organizations, users RESTART IDENTITY CASCADE;"
             )
         )
         await session.commit()

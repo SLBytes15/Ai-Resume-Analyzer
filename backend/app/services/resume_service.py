@@ -1,8 +1,9 @@
 import uuid
 from typing import List, Optional, Tuple
 from fastapi import HTTPException, UploadFile, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.application import Application
 from app.models.candidate import CandidateProfile, ParsingStatus, Resume
 from app.models.user import User
 from app.schemas.candidate import CandidateProfileCreate, CandidateProfileUpdate
@@ -225,6 +226,19 @@ async def delete_candidate_resume(
 ) -> None:
     """Delete resume from database and remove stored file."""
     resume = await get_candidate_resume(db, candidate_id, resume_id)
+
+    # Check if resume is pinned to any existing application
+    pinned_query = select(func.count(Application.id)).where(
+        Application.submitted_resume_id == resume_id
+    )
+    pinned_res = await db.execute(pinned_query)
+    pinned_count = pinned_res.scalar() or 0
+    if pinned_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete resume: it is pinned to one or more submitted job applications",
+        )
+
     was_active = resume.is_active
     storage_path = resume.storage_path
 

@@ -159,6 +159,10 @@ class Job(Base):
     # Relationships
     organization = relationship("Organization", back_populates="jobs")
     creator = relationship("User")
+    applications = relationship(
+        "Application",
+        back_populates="job",
+    )
 
     __table_args__ = (
         CheckConstraint(
